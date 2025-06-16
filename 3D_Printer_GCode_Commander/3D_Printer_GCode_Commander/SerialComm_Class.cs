@@ -52,9 +52,8 @@ namespace _3D_Printer_GCode_Commander
         private NumStopBitsSelections_e stopBitSelect;
         private BaudRateSelections_e baudRateSelect;
         private NumDataBitsSelections_e dataBitsSelect;
-        private CancellationTokenSource cancelTokenSource; //used to start and stop async task
+        private bool isTasksCancelled;
 
-       
         //private ui element variables
         //serialConfig panel elements
         private System.Windows.Forms.Panel   SerialConfig_Panel;
@@ -160,14 +159,10 @@ namespace _3D_Printer_GCode_Commander
                 serialPort_Instance.Open();
 
                 //start async task to send transmit queue messages
-                if(cancelTokenSource != null)
-                {
-                    cancelTokenSource.Dispose();
-                }
-                cancelTokenSource = new CancellationTokenSource(); //used to start and stop async tasks
-                Task.Run(() => SendSerialAsync(cancelTokenSource.Token));
-                Task.Run(() => ReceiveSerialAsync(cancelTokenSource.Token));
-
+                isTasksCancelled = false;
+                Task.Run(() => SendSerialAsync();
+                Task.Run(() => ReceiveSerialAsync();
+                
                 retVal = true;
             }
             else
@@ -183,7 +178,7 @@ namespace _3D_Printer_GCode_Commander
             serialPort_Instance.Dispose();
 
             //end async tasks
-            cancelTokenSource.Cancel();
+            isTasksCancelled = true;
                         
             ClearCommMenus();
         }
@@ -255,17 +250,17 @@ namespace _3D_Printer_GCode_Commander
          * runs on a seperate thread than the commander main app
          * executes automatically, parallel to the main thread
          *******************************************************/
-        private async Task SendSerialAsync(CancellationToken token)
+        private async Task SendSerialAsync()
         {
             byte[] bytes;
 
-            while(!token.IsCancellationRequested) //while task isnt cancelled
+            while(!isTasksCancelled) //while task isnt cancelled
             {
                 if ((serialPort_Instance != null) && (serialPort_Instance.IsOpen))
                 {
                     while (serialPort_Instance.BytesToWrite > 0)
                     {
-                        await Task.Delay(300, token); 
+                        await Task.Delay(300); 
                     } //waiting for serial port to be ready
 
                     if (serialTransmitQueue.Count > 0)
@@ -288,7 +283,7 @@ namespace _3D_Printer_GCode_Commander
                     //reset start button so its not greyed out
                     ResetStartButton();
                 }
-                await Task.Delay(1000, token); // Pass the token to ensure safe cancellation
+                await Task.Delay(1000); // Pass the token to ensure safe cancellation
             }
         }
 
@@ -300,15 +295,15 @@ namespace _3D_Printer_GCode_Commander
          * runs on a seperate thread than the commander main app
          * executes automatically, parallel to the main thread
          *******************************************************/
-        private async Task ReceiveSerialAsync(CancellationToken token)
+        private async Task ReceiveSerialAsync()
         {
-            while (!token.IsCancellationRequested) //while task isnt cancelled
+            while (!isTasksCancelled) //while task isnt cancelled
             {
                 if ((serialPort_Instance != null) && (serialPort_Instance.IsOpen))
                 {
                     while ((serialReceiveQueue == null ) || (serialReceiveQueue.Count <= 0))
                     {
-                        await Task.Delay(500, token);
+                        await Task.Delay(500);
                     } //waiting for bytes to appear in receive queue
 
                     ModuleMessage receivedMessage = new ModuleMessage(serialReceiveQueue.ToArray());
@@ -332,7 +327,7 @@ namespace _3D_Printer_GCode_Commander
                         serialReceiveQueue.RemoveAt(0);
                     }
                 }
-                await Task.Delay(500, token); // Pass the token to ensure safe cancellation
+                await Task.Delay(500); // Pass the token to ensure safe cancellation
             }
         }
 

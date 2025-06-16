@@ -32,7 +32,7 @@ namespace _3D_Printer_GCode_Commander
 
         //private variables
         private readonly GCodeCommand gCodeCommand;
-        private static byte currTransactionID;
+        private static byte currTransactionID = 0;
         
         //public variable
         public bool isValid;
