@@ -53,14 +53,18 @@ namespace _3D_Printer_GCode_Commander
         {
             return GCodeFileInfo_Class.GetInstance().GetGCodeCommands();
         }
-        public static void RouteIntertaskMessage(Owner_e MessageSender, SerialCommMessage request)
+        public static void RouteIntertaskMessage(Owner_e Destination, SerialCommMessage request)
         {
-            //is the serialComm class calling this function?
-            if (MessageSender == Owner_e.Serial_Comm_Class)
+            //is the serialComm class receiving this request?
+            if (Destination == Owner_e.Serial_Comm_Class)
             {
-                //serialComm class wants to route the request to the owner of the request
-                //call appropriate class functions
-                switch(MessageSender)
+                //serialComm tasks want to route the request to the serialComm Class
+                SerialComm_Class.GetInstance().AddMessageToTxQueue(request);
+            }
+            else
+            {
+                //switch call appropriate class functions
+                switch (Destination)
                 {
                     case Owner_e.Gcode_Commander_Class:
                         //handle request
@@ -76,11 +80,6 @@ namespace _3D_Printer_GCode_Commander
                     case Owner_e.Serial_Comm_Class:
                         break;
                 }
-            }
-            else
-            {
-                //other tasks want to route the request to the serialComm Class
-                SerialComm_Class.GetInstance().AddMessageToTxQueue(request);
             }
         }
         

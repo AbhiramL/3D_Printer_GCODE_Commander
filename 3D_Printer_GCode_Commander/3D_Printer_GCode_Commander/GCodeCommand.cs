@@ -19,7 +19,7 @@ namespace _3D_Printer_GCode_Commander
     {
         public string gCodeString;
         public CommandType_e CmdType;
-        public short NumCode; // Numeric Code (eg. 0, 1, 21 ...)
+        public short CmdCode; // Numeric Code (eg. 0, 1, 21 ...)
         public Dictionary<char, float> Parameters; //holds x,y,z,f,s...parameters and their value
 
         /********************************************************
@@ -29,7 +29,7 @@ namespace _3D_Printer_GCode_Commander
         {
             gCodeString = null;
             CmdType = CommandType_e.E;
-            NumCode = 0;
+            CmdCode = 0;
             Parameters = null;
         }
 
@@ -41,7 +41,7 @@ namespace _3D_Printer_GCode_Commander
         {
             gCodeString = null;
             CmdType = type;
-            NumCode = 0;
+            CmdCode = 0;
             Parameters = new Dictionary<char, float>();
         }
 
@@ -78,7 +78,7 @@ namespace _3D_Printer_GCode_Commander
                 {
                     if (int.TryParse(commandParts[0].Substring(1), out int numCode))
                     {
-                        NumCode = (short)numCode; // Extract numeric part of the code, eg. G21, extract 21
+                        CmdCode = (short)numCode; // Extract numeric part of the code, eg. G21, extract 21
                     }
 
                     if (commandParts.Count() > 1)

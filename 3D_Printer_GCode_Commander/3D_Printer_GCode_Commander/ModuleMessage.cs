@@ -70,12 +70,13 @@ namespace _3D_Printer_GCode_Commander
             baseMessage.Sync = 0xB7;
             baseMessage.TransactID = currTransactionID++;
             baseMessage.CmdType = gCode.CmdType;
-            baseMessage.CmdID = (ushort)gCode.NumCode;
+            baseMessage.CmdID = (ushort)gCode.CmdCode;
 
+            int count = 0;
             if ((gCode.Parameters != null) && (gCode.Parameters.Count > 0))
             {
                 varMessage.Data = new float[gCode.Parameters.Count];
-                int count = 0;
+                count = 0;
                 foreach (char key in gCode.Parameters.Keys)
                 {
                     varMessage.Data[count] = gCode.Parameters[key];
@@ -87,6 +88,8 @@ namespace _3D_Printer_GCode_Commander
                 varMessage.Data = new float[0];
             }
             baseMessage.Checksum = CalculateChecksum();
+
+            baseMessage.NumBytes = (ushort)(9 + (4*count));
 
             isValid = true;
         }

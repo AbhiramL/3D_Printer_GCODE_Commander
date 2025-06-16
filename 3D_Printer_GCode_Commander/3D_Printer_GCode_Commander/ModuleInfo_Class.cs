@@ -17,7 +17,7 @@ namespace _3D_Printer_GCode_Commander
 
         //private class variables
         private static ModuleInfo_Class ModuleInfo_instance = null;
-        private DateTime requestSendTime, ackReceivedTime;
+        //private DateTime requestSendTime, ackReceivedTime;
         
         //private ui element variables
         private System.Windows.Forms.Panel ModuleInfo_Panel;
@@ -67,7 +67,7 @@ namespace _3D_Printer_GCode_Commander
             gCodeCommand.gCodeString = "Module Identify Command";
             SerialCommMessage serialMessage = new SerialCommMessage(myClassName, gCodeCommand);
             
-            Commander_MainApp.RouteIntertaskMessage(myClassName, serialMessage);
+            Commander_MainApp.RouteIntertaskMessage(Owner_e.Serial_Comm_Class, serialMessage);
         }
 
         /********************************************************

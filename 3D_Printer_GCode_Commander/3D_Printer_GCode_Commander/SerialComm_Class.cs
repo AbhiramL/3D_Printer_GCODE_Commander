@@ -54,10 +54,7 @@ namespace _3D_Printer_GCode_Commander
         private NumDataBitsSelections_e dataBitsSelect;
         private CancellationTokenSource cancelTokenSource; //used to start and stop async task
 
-        //flag to indicate successful communication to the async task
-        bool isAcknowledgeReceived;
-
-
+       
         //private ui element variables
         //serialConfig panel elements
         private System.Windows.Forms.Panel   SerialConfig_Panel;
@@ -91,6 +88,7 @@ namespace _3D_Printer_GCode_Commander
         private SerialComm_Class()
         {
             serialTransmitQueue = new List<ModuleMessage>();
+            serialReceiveQueue = new List<byte>();
             serialMessageRequestQueue = new List<SerialCommMessage>();
 
             Build_SerialComm_Panel();
