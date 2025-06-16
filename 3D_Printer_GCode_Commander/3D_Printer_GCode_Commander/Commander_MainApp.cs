@@ -12,7 +12,11 @@ namespace _3D_Printer_GCode_Commander
 {
     public partial class Commander_MainApp : Form
     {
-        private readonly double commander_version = 0.5;
+        //public variables
+        public readonly Owner_e myClassName = Owner_e.Gcode_Commander_Class;
+        public readonly double commander_version = 0.5;
+        
+        //private variables
         private ModuleInfo_Class ModuleInfo;
         private GCodeFileInfo_Class GCodeFileInfo;
         private SerialComm_Class SerialComm;
@@ -43,6 +47,41 @@ namespace _3D_Printer_GCode_Commander
             this.ClientSize = new System.Drawing.Size(1086, 510);
             this.ResumeLayout(false);
 
+        }
+
+        public static List<GCodeCommand> GetGCodeCommandList()
+        {
+            return GCodeFileInfo_Class.GetInstance().GetGCodeCommands();
+        }
+        public static void RouteIntertaskMessage(Owner_e MessageSender, SerialCommMessage request)
+        {
+            //is the serialComm class calling this function?
+            if (MessageSender == Owner_e.Serial_Comm_Class)
+            {
+                //serialComm class wants to route the request to the owner of the request
+                //call appropriate class functions
+                switch(MessageSender)
+                {
+                    case Owner_e.Gcode_Commander_Class:
+                        //handle request
+                        break;
+                    case Owner_e.Module_Info_Class:
+                        //call moduleInfo handler
+                        ModuleInfo_Class.GetInstance().SerialRequestAnswered(request);
+                        break;
+                    case Owner_e.Diagnostic_Class:
+                        break;
+                    case Owner_e.Gcode_File_Info_Class:
+                        break;
+                    case Owner_e.Serial_Comm_Class:
+                        break;
+                }
+            }
+            else
+            {
+                //other tasks want to route the request to the serialComm Class
+                SerialComm_Class.GetInstance().AddMessageToTxQueue(request);
+            }
         }
         
     }

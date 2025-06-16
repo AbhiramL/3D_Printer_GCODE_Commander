@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.IO.Ports;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -11,11 +13,12 @@ namespace _3D_Printer_GCode_Commander
     internal class ModuleInfo_Class
     {
         //public variables
+        public readonly Owner_e myClassName = Owner_e.Module_Info_Class;
 
         //private class variables
         private static ModuleInfo_Class ModuleInfo_instance = null;
-        //private SerialComm_Class SerialComm_Mgr;
-
+        private DateTime requestSendTime, ackReceivedTime;
+        
         //private ui element variables
         private System.Windows.Forms.Panel ModuleInfo_Panel;
         private System.Windows.Forms.TextBox ModuleVersion_TextBox;
@@ -49,6 +52,22 @@ namespace _3D_Printer_GCode_Commander
                 ModuleInfo_instance = new ModuleInfo_Class();
             }
             return ModuleInfo_instance;
+        }
+
+        /********************************************************
+         * Connect to module function
+         * 
+         * returns true if connection is made
+         *******************************************************/
+        public void AttemptModuleConnection()
+        {
+            GCodeCommand gCodeCommand = new GCodeCommand(CommandType_e.I);
+
+            //special case 
+            gCodeCommand.gCodeString = "Module Identify Command";
+            SerialCommMessage serialMessage = new SerialCommMessage(myClassName, gCodeCommand);
+            
+            Commander_MainApp.RouteIntertaskMessage(myClassName, serialMessage);
         }
 
         /********************************************************
@@ -160,14 +179,29 @@ namespace _3D_Printer_GCode_Commander
         }
 
         /********************************************************
+         * Serial Request Handler
+         * 
+         * 
+         *******************************************************/
+        public void SerialRequestAnswered(SerialCommMessage receivedMsg)
+        {
+            if(receivedMsg.moduleMsg.baseMessage.CmdType == CommandType_e.I)
+            {
+                //if success, then update panel
+                ModuleVersion_Label.Text = "";
+                ModuleVersion_TextBox.Text = "Connected";
+            }
+        }
+
+        /********************************************************
          * Button Click Handler
          * 
          * initializes Textboxes, Labels, a Panel, and a button
          *******************************************************/
         private void Connect_Btn_Click_Handler(object sender, EventArgs e)
         {
-            
-
+            //send a command to the module and await response
+            AttemptModuleConnection();
         }
     }
 }
