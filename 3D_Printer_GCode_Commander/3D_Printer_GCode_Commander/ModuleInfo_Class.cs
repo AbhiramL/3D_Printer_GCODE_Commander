@@ -65,7 +65,7 @@ namespace _3D_Printer_GCode_Commander
 
             //special case 
             gCodeCommand.gCodeString = "Module Identify Command";
-            SerialCommMessage serialMessage = new SerialCommMessage(myClassName, gCodeCommand);
+            IntertaskMessage serialMessage = new IntertaskMessage(myClassName, gCodeCommand);
             
             Commander_MainApp.RouteIntertaskMessage(Owner_e.Serial_Comm_Class, serialMessage);
         }
@@ -183,7 +183,7 @@ namespace _3D_Printer_GCode_Commander
          * 
          * 
          *******************************************************/
-        public void SerialRequestAnswered(SerialCommMessage receivedMsg)
+        public void SerialRequestAnswered(IntertaskMessage receivedMsg)
         {
             if(receivedMsg.moduleMsg.baseMessage.CmdType == CommandType_e.I)
             {

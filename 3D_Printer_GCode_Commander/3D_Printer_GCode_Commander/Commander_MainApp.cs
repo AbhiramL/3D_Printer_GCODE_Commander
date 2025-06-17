@@ -53,7 +53,7 @@ namespace _3D_Printer_GCode_Commander
         {
             return GCodeFileInfo_Class.GetInstance().GetGCodeCommands();
         }
-        public static void RouteIntertaskMessage(Owner_e Destination, SerialCommMessage request)
+        public static void RouteIntertaskMessage(Owner_e Destination, IntertaskMessage request)
         {
             //is the serialComm class receiving this request?
             if (Destination == Owner_e.Serial_Comm_Class)

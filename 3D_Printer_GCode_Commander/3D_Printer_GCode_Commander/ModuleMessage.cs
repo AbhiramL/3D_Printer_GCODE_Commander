@@ -32,10 +32,15 @@ namespace _3D_Printer_GCode_Commander
 
         //private variables
         private readonly GCodeCommand gCodeCommand;
-        private static byte currTransactionID = 0;
-        
+        private static byte currTransactID = 0;
+
         //public variable
         public bool isValid;
+
+        public static void resetTransactionID()
+        {
+            currTransactID = 0;
+        }
 
         /********************************************************
          * Constructors
@@ -45,7 +50,7 @@ namespace _3D_Printer_GCode_Commander
         {
             //sets up a message with the Command Type
             baseMessage.Sync = 0xB7;
-            baseMessage.TransactID = currTransactionID++;
+            baseMessage.TransactID = currTransactID++;
             baseMessage.CmdType = 0;
             baseMessage.CmdID = 0;
             baseMessage.NumBytes = 9;
@@ -56,7 +61,7 @@ namespace _3D_Printer_GCode_Commander
         {
             //sets up a message with the Command Type
             baseMessage.Sync = 0xB7;
-            baseMessage.TransactID = currTransactionID++;
+            baseMessage.TransactID = currTransactID++;
             baseMessage.CmdType = cmdType;
             baseMessage.CmdID = cmdId;
             baseMessage.NumBytes = 9;
@@ -68,7 +73,7 @@ namespace _3D_Printer_GCode_Commander
         {
             gCodeCommand = gCode;
             baseMessage.Sync = 0xB7;
-            baseMessage.TransactID = currTransactionID++;
+            baseMessage.TransactID = currTransactID++;
             baseMessage.CmdType = gCode.CmdType;
             baseMessage.CmdID = (ushort)gCode.CmdCode;
 

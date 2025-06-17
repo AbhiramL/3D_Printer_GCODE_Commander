@@ -103,10 +103,10 @@ namespace _3D_Printer_GCode_Commander
         {
             GCodeCmdList = new List<GCodeCommand>();
             string line;
-            bool isValid = true;
+            bool isValid = false;
 
             //perform a check of the GCODE
-            while ((line = GCFileReader.ReadLine()) != null)
+            while ((GCFileReader != null) && ((line = GCFileReader.ReadLine()) != null))
             {
                 //check if it is really a GCODE and build a GCode Command
                 GCodeCommand gCodeCommand = new GCodeCommand(line);
@@ -123,11 +123,15 @@ namespace _3D_Printer_GCode_Commander
                 {
                     //add cmd to the list
                     GCodeCmdList.Add(gCodeCommand);
+                    isValid = true;
                 }
             }
 
-            //close reader and return
-            GCFileReader.Close();
+            if ((GCFileReader != null))
+            {
+                //close reader and return
+                GCFileReader.Close();
+            }
             return isValid;
         }
 

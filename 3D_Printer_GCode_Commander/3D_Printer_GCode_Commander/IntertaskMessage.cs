@@ -14,7 +14,7 @@ namespace _3D_Printer_GCode_Commander
         Gcode_File_Info_Class,
         Serial_Comm_Class
     }
-    public class SerialCommMessage
+    public class IntertaskMessage
     {
         //public variables
         public Owner_e messageOwner;
@@ -22,14 +22,14 @@ namespace _3D_Printer_GCode_Commander
 
         //private variables
 
-        private SerialCommMessage() { }
+        private IntertaskMessage() { }
         
-        public SerialCommMessage(Owner_e messageOwner, GCodeCommand data)
+        public IntertaskMessage(Owner_e messageOwner, GCodeCommand data)
         {
             this.messageOwner = messageOwner;
             this.moduleMsg = new ModuleMessage(data);
         }
-        public SerialCommMessage(Owner_e messageOwner, ModuleMessage data)
+        public IntertaskMessage(Owner_e messageOwner, ModuleMessage data)
         {
             this.messageOwner = messageOwner;
             this.moduleMsg = data;

@@ -16,7 +16,11 @@ namespace _3D_Printer_GCode_Commander
         b_19200 = 19200,
         b_38400 = 38400,
         b_57600 = 57600,
-        b_115200 = 115200
+        b_115200 = 115200,
+        b_230400 = 230400,
+        b_460800 = 460800,
+        b_921600 = 921600
+
     };
     public enum ParitySelections_e : byte
     {
@@ -44,7 +48,7 @@ namespace _3D_Printer_GCode_Commander
         //private variables
         private static SerialComm_Class SerialComm_Instance = null;
         private SerialPort serialPort_Instance = null;
-        private List<SerialCommMessage> serialMessageRequestQueue;
+        private List<IntertaskMessage> serialMessageRequestQueue;
         private List<ModuleMessage> serialTransmitQueue; //tx messages are in byte[] format
         private List<byte> serialReceiveQueue; //rx messages are in byte format, to be processed into complete messages
         private string portSelect;
@@ -52,7 +56,9 @@ namespace _3D_Printer_GCode_Commander
         private NumStopBitsSelections_e stopBitSelect;
         private BaudRateSelections_e baudRateSelect;
         private NumDataBitsSelections_e dataBitsSelect;
-        private bool isTasksCancelled;
+        private CancellationTokenSource cancelTokenSource;
+        private CancellationToken cancelToken;
+        private byte currentTransactID;
 
         //private ui element variables
         //serialConfig panel elements
@@ -88,7 +94,7 @@ namespace _3D_Printer_GCode_Commander
         {
             serialTransmitQueue = new List<ModuleMessage>();
             serialReceiveQueue = new List<byte>();
-            serialMessageRequestQueue = new List<SerialCommMessage>();
+            serialMessageRequestQueue = new List<IntertaskMessage>();
 
             Build_SerialComm_Panel();
             Build_SerialConfig_Panel();
@@ -157,12 +163,16 @@ namespace _3D_Printer_GCode_Commander
                 //open new serial port instance
                 serialPort_Instance = new SerialPort(portSelect, (int)baudRateSelect, (Parity)paritySelect, (int)dataBitsSelect, (StopBits)stopBitSelect);
                 serialPort_Instance.Open();
-
+                serialTransmitQueue.Clear();
                 //start async task to send transmit queue messages
-                isTasksCancelled = false;
-                Task.Run(() => SendSerialAsync();
-                Task.Run(() => ReceiveSerialAsync();
-                
+                cancelTokenSource = new CancellationTokenSource();
+                cancelToken = cancelTokenSource.Token;
+                Task.Run(() => SendSerialAsync(cancelToken));
+                Task.Run(() => ReceiveSerialAsync(cancelToken));
+
+                //reset transaction id
+                ModuleMessage.resetTransactionID();
+
                 retVal = true;
             }
             else
@@ -178,9 +188,11 @@ namespace _3D_Printer_GCode_Commander
             serialPort_Instance.Dispose();
 
             //end async tasks
-            isTasksCancelled = true;
+            cancelTokenSource.Cancel();
                         
             ClearCommMenus();
+
+            serialTransmitQueue.Clear();
         }
 
         /********************************************************
@@ -188,12 +200,12 @@ namespace _3D_Printer_GCode_Commander
          * Called from async task
          * routes valid message to message request owner
          *******************************************************/
-        private void RouteMessageToRequestOwner(ModuleMessage incommingMessage)
+        private void RouteReceivedMessage(ModuleMessage incommingMessage)
         {
             //check incomming message validity
             if (incommingMessage.isValid)
             {
-                //check the request queue 
+                //check the request queue to see if the incomming message is for another class
                 for(int i = 0; i < serialMessageRequestQueue.Count; i++) 
                 {
                     //find if a request matched the incomming message transaction id
@@ -208,14 +220,17 @@ namespace _3D_Printer_GCode_Commander
                         break;
                     }
                 }
+
+                //else it is a general message and should be printed out on ui
             }
         }
+
         /********************************************************
          * Add serial message to transmit queue.
          * 
          * adds a serial message to the Transmit queue
          *******************************************************/
-        public void AddMessageToTxQueue(SerialCommMessage serialCommMessage)
+        public void AddMessageToTxQueue(IntertaskMessage serialCommMessage)
         {
             if (serialPort_Instance == null)
             {
@@ -250,40 +265,35 @@ namespace _3D_Printer_GCode_Commander
          * runs on a seperate thread than the commander main app
          * executes automatically, parallel to the main thread
          *******************************************************/
-        private async Task SendSerialAsync()
+        private async Task SendSerialAsync(CancellationToken token)
         {
             byte[] bytes;
 
-            while(!isTasksCancelled) //while task isnt cancelled
+            while(!cancelTokenSource.IsCancellationRequested) //while task isnt cancelled
             {
                 if ((serialPort_Instance != null) && (serialPort_Instance.IsOpen))
                 {
                     while (serialPort_Instance.BytesToWrite > 0)
                     {
-                        await Task.Delay(300); 
+                        await Task.Delay(300,token); 
                     } //waiting for serial port to be ready
 
                     if (serialTransmitQueue.Count > 0)
                     {
                         //send next module message
                         bytes = serialTransmitQueue[0].GetByteArray();
-
+                        Console.WriteLine(BitConverter.ToString(bytes));
                         serialPort_Instance.Write(bytes, 0, bytes.Length);
 
                         //add message to screen ui
-                        AddSentMessage(bytes);
+                        //AddSentMessage(bytes);
 
                         //dequeue 
                         serialTransmitQueue.RemoveAt(0);
                     }
                 }
 
-                if((serialTransmitQueue.Count == 0))
-                {
-                    //reset start button so its not greyed out
-                    ResetStartButton();
-                }
-                await Task.Delay(1000); // Pass the token to ensure safe cancellation
+                await Task.Delay(1000,token); // Pass the token to ensure safe cancellation
             }
         }
 
@@ -295,15 +305,15 @@ namespace _3D_Printer_GCode_Commander
          * runs on a seperate thread than the commander main app
          * executes automatically, parallel to the main thread
          *******************************************************/
-        private async Task ReceiveSerialAsync()
+        private async Task ReceiveSerialAsync(CancellationToken token)
         {
-            while (!isTasksCancelled) //while task isnt cancelled
+            while (!cancelTokenSource.IsCancellationRequested) //while task isnt cancelled
             {
                 if ((serialPort_Instance != null) && (serialPort_Instance.IsOpen))
                 {
                     while ((serialReceiveQueue == null ) || (serialReceiveQueue.Count <= 0))
                     {
-                        await Task.Delay(500);
+                        await Task.Delay(500, token);
                     } //waiting for bytes to appear in receive queue
 
                     ModuleMessage receivedMessage = new ModuleMessage(serialReceiveQueue.ToArray());
@@ -312,10 +322,10 @@ namespace _3D_Printer_GCode_Commander
                     if(receivedMessage.isValid)
                     {
                         //invoke the SerialComm class route message function
-                        RouteMessageToRequestOwner(receivedMessage);
+                        RouteReceivedMessage(receivedMessage);
 
                         //add message to the ui screen
-                        AddRecMessage(receivedMessage.GetByteArray());
+                        //AddRecMessage(receivedMessage.GetByteArray());
 
                         //since the message is valid, remove bytes in receive queue until the message's sync is found
                         while (serialReceiveQueue[0] != receivedMessage.baseMessage.Sync)
@@ -327,17 +337,14 @@ namespace _3D_Printer_GCode_Commander
                         serialReceiveQueue.RemoveAt(0);
                     }
                 }
-                await Task.Delay(500); // Pass the token to ensure safe cancellation
+                await Task.Delay(500, token); // Pass the token to ensure safe cancellation
             }
         }
 
-        /********************************************************
+        /***************************************************************************************
          * Panel Specific Functions
-         * 
-         * init and clear Panel elements, and handlers for events
-         *******************************************************/
-
-        /********************************************************
+         *
+         ********************************************************
          * Build Panel Function
          * 
          * initializes Textboxes, Labels, a Panel, and buttons
@@ -410,7 +417,7 @@ namespace _3D_Printer_GCode_Commander
             SerialConfig_DataBits_TextBox.ReadOnly = true;
             SerialConfig_DataBits_TextBox.BackColor = System.Drawing.SystemColors.Window;
             SerialConfig_DataBits_TextBox.Cursor = System.Windows.Forms.Cursors.SizeAll;
-            SerialConfig_DataBits_TextBox.Location = new System.Drawing.Point(31, 310);
+            SerialConfig_DataBits_TextBox.Location = new System.Drawing.Point(31, 240);
             SerialConfig_DataBits_TextBox.Name = "SerialConfig_DataBits_TextBox";
             SerialConfig_DataBits_TextBox.Size = new System.Drawing.Size(93, 22);
             SerialConfig_DataBits_TextBox.TabIndex = 21;
@@ -425,14 +432,14 @@ namespace _3D_Printer_GCode_Commander
             SerialConfig_StopBits_TextBox.Name = "SerialConfig_StopBits_TextBox";
             SerialConfig_StopBits_TextBox.Size = new System.Drawing.Size(93, 22);
             SerialConfig_StopBits_TextBox.TabIndex = 16;
-            SerialConfig_StopBits_TextBox.Text = "Stop Bit";
+            SerialConfig_StopBits_TextBox.Text = "Stop Bits";
             SerialConfig_StopBits_TextBox.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // SerialConfig_Parities_TextBox
             // 
             SerialConfig_Parities_TextBox.ReadOnly = true;
             SerialConfig_Parities_TextBox.BackColor = System.Drawing.SystemColors.Window;
-            SerialConfig_Parities_TextBox.Location = new System.Drawing.Point(31, 240);
+            SerialConfig_Parities_TextBox.Location = new System.Drawing.Point(31, 310);
             SerialConfig_Parities_TextBox.Name = "SerialConfig_Parities_TextBox";
             SerialConfig_Parities_TextBox.Size = new System.Drawing.Size(93, 22);
             SerialConfig_Parities_TextBox.TabIndex = 15;
@@ -478,7 +485,7 @@ namespace _3D_Printer_GCode_Commander
             // SerialConfig_DataBits_ComboBox
             // 
             SerialConfig_DataBits_ComboBox.FormattingEnabled = true;
-            SerialConfig_DataBits_ComboBox.Location = new System.Drawing.Point(151, 310);
+            SerialConfig_DataBits_ComboBox.Location = new System.Drawing.Point(151, 240);
             SerialConfig_DataBits_ComboBox.Name = "SerialConfig_DataBits_ListBox";
             SerialConfig_DataBits_ComboBox.Size = new System.Drawing.Size(154, 24);
             SerialConfig_DataBits_ComboBox.TabIndex = 22;
@@ -494,7 +501,7 @@ namespace _3D_Printer_GCode_Commander
             // SerialConfig_Parities_ComboBox
             // 
             SerialConfig_Parities_ComboBox.FormattingEnabled = true;
-            SerialConfig_Parities_ComboBox.Location = new System.Drawing.Point(150, 240);
+            SerialConfig_Parities_ComboBox.Location = new System.Drawing.Point(150, 310);
             SerialConfig_Parities_ComboBox.Name = "SerialConfig_Parities_ListBox";
             SerialConfig_Parities_ComboBox.Size = new System.Drawing.Size(155, 24);
             SerialConfig_Parities_ComboBox.TabIndex = 18;
@@ -647,16 +654,6 @@ namespace _3D_Printer_GCode_Commander
         }
 
         /********************************************************
-         * Get Panel Function
-         * 
-         * returns SerialComm panel
-         *******************************************************/
-        private void ResetStartButton()
-        {
-            SerialComm_StartComm_Btn.Enabled = true;
-        }
-        
-        /********************************************************
          * Add ComboBox items functions
          * 
          * fills the ComboBox elements with relevant info
@@ -690,7 +687,7 @@ namespace _3D_Printer_GCode_Commander
             {
                 SerialConfig_Parities_ComboBox.Items.Add(parity);  // Add parity options to the ComboBox
             }
-            SerialConfig_Parities_ComboBox.SelectedIndex = 2;
+            SerialConfig_Parities_ComboBox.SelectedIndex = 0;
         }
         private void AddDataBitsOptions()
         {
