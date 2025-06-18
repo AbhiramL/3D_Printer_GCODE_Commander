@@ -22,19 +22,19 @@ namespace _3D_Printer_GCode_Commander
         b_921600 = 921600
 
     };
-    public enum ParitySelections_e : byte
+    public enum ParitySelections_e
     {
         p_None = 0,
         p_Odd = 1,
         p_Even = 2
     };
-    public enum NumDataBitsSelections_e : byte
+    public enum NumDataBitsSelections_e
     {
         d_7 = 7,
         d_8 = 8,
         d_9 = 9
     };
-    public enum NumStopBitsSelections_e : byte
+    public enum NumStopBitsSelections_e
     {
         s_None = 0,
         s_1 = 1,
@@ -162,6 +162,7 @@ namespace _3D_Printer_GCode_Commander
 
                 //open new serial port instance
                 serialPort_Instance = new SerialPort(portSelect, (int)baudRateSelect, (Parity)paritySelect, (int)dataBitsSelect, (StopBits)stopBitSelect);
+                serialPort_Instance.Encoding = Encoding.ASCII;
                 serialPort_Instance.Open();
                 serialTransmitQueue.Clear();
                 //start async task to send transmit queue messages
@@ -184,15 +185,18 @@ namespace _3D_Printer_GCode_Commander
         }
         public void ClosePort()
         {
-            serialPort_Instance.Close();
-            serialPort_Instance.Dispose();
+            if (serialPort_Instance != null)
+            { 
+                serialPort_Instance.Close();
+                serialPort_Instance.Dispose();
 
-            //end async tasks
-            cancelTokenSource.Cancel();
-                        
-            ClearCommMenus();
+                //end async tasks
+                cancelTokenSource.Cancel();
 
-            serialTransmitQueue.Clear();
+                ClearCommMenus();
+
+                serialTransmitQueue.Clear();
+            }
         }
 
         /********************************************************
@@ -705,7 +709,7 @@ namespace _3D_Printer_GCode_Commander
             {
                 SerialConfig_StopBits_ComboBox.Items.Add(stopBits);  // Add stop bit options to ComboBox
             }
-            SerialConfig_StopBits_ComboBox.SelectedIndex = 2;
+            SerialConfig_StopBits_ComboBox.SelectedIndex = 1;
         }
 
         /********************************************************

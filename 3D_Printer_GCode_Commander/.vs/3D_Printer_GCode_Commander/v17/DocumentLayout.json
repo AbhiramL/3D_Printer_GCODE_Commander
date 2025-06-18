@@ -3,16 +3,16 @@
   "WorkspaceRootPath": "D:\\Github\\3D_Printer_GCODE_Commander\\3D_Printer_GCode_Commander\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{5F31D7AA-C541-422B-A60D-60576414A824}|3D_Printer_GCode_Commander\\3D_Printer_GCode_Commander.csproj|D:\\Github\\3D_Printer_GCODE_Commander\\3D_Printer_GCode_Commander\\3d_printer_gcode_commander\\serialcomm_class.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{5F31D7AA-C541-422B-A60D-60576414A824}|3D_Printer_GCode_Commander\\3D_Printer_GCode_Commander.csproj|solutionrelative:3d_printer_gcode_commander\\serialcomm_class.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{5F31D7AA-C541-422B-A60D-60576414A824}|3D_Printer_GCode_Commander\\3D_Printer_GCode_Commander.csproj|d:\\github\\3d_printer_gcode_commander\\3d_printer_gcode_commander\\3d_printer_gcode_commander\\intertaskmessage.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{5F31D7AA-C541-422B-A60D-60576414A824}|3D_Printer_GCode_Commander\\3D_Printer_GCode_Commander.csproj|solutionrelative:3d_printer_gcode_commander\\intertaskmessage.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{5F31D7AA-C541-422B-A60D-60576414A824}|3D_Printer_GCode_Commander\\3D_Printer_GCode_Commander.csproj|D:\\Github\\3D_Printer_GCODE_Commander\\3D_Printer_GCode_Commander\\3d_printer_gcode_commander\\modulemessage.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{5F31D7AA-C541-422B-A60D-60576414A824}|3D_Printer_GCode_Commander\\3D_Printer_GCode_Commander.csproj|solutionrelative:3d_printer_gcode_commander\\modulemessage.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{5F31D7AA-C541-422B-A60D-60576414A824}|3D_Printer_GCode_Commander\\3D_Printer_GCode_Commander.csproj|d:\\github\\3d_printer_gcode_commander\\3d_printer_gcode_commander\\3d_printer_gcode_commander\\serialcomm_class.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{5F31D7AA-C541-422B-A60D-60576414A824}|3D_Printer_GCode_Commander\\3D_Printer_GCode_Commander.csproj|solutionrelative:3d_printer_gcode_commander\\serialcomm_class.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{5F31D7AA-C541-422B-A60D-60576414A824}|3D_Printer_GCode_Commander\\3D_Printer_GCode_Commander.csproj|D:\\Github\\3D_Printer_GCODE_Commander\\3D_Printer_GCode_Commander\\3d_printer_gcode_commander\\moduleinfo_class.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -38,7 +38,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 5,
+          "SelectedChildIndex": 1,
           "Children": [
             {
               "$type": "Document",
@@ -51,18 +51,17 @@
               "ViewState": "AgIAACgAAAAAAAAAAAAAwDcAAABRAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-06-13T15:30:49.031Z",
-              "IsPinned": true,
-              "EditorCaption": ""
+              "IsPinned": true
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 0,
               "Title": "SerialComm_Class.cs",
               "DocumentMoniker": "D:\\Github\\3D_Printer_GCODE_Commander\\3D_Printer_GCode_Commander\\3D_Printer_GCode_Commander\\SerialComm_Class.cs",
               "RelativeDocumentMoniker": "3D_Printer_GCode_Commander\\SerialComm_Class.cs",
               "ToolTip": "D:\\Github\\3D_Printer_GCODE_Commander\\3D_Printer_GCode_Commander\\3D_Printer_GCode_Commander\\SerialComm_Class.cs",
               "RelativeToolTip": "3D_Printer_GCode_Commander\\SerialComm_Class.cs",
-              "ViewState": "AgIAAJUAAAAAAAAAAAA0wBUAAAAZAAAAAAAAAA==",
+              "ViewState": "AgIAABgAAAAAAAAAAAA7wKcAAABCAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-06-13T23:44:18.972Z",
               "EditorCaption": ""
@@ -77,8 +76,7 @@
               "RelativeToolTip": "3D_Printer_GCode_Commander\\ModuleInfo_Class.cs",
               "ViewState": "AgIAAC8AAAAAAAAAAAAywEMAAAAxAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-06-13T16:10:24.727Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-06-13T16:10:24.727Z"
             },
             {
               "$type": "Document",
@@ -90,12 +88,11 @@
               "RelativeToolTip": "3D_Printer_GCode_Commander\\GCodeFileInfo_Class.cs",
               "ViewState": "AgIAAGoAAAAAAAAAAAAjwH0AAAAjAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-06-16T15:22:21.508Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-06-16T15:22:21.508Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 2,
               "Title": "ModuleMessage.cs",
               "DocumentMoniker": "D:\\Github\\3D_Printer_GCODE_Commander\\3D_Printer_GCode_Commander\\3D_Printer_GCode_Commander\\ModuleMessage.cs",
               "RelativeDocumentMoniker": "3D_Printer_GCode_Commander\\ModuleMessage.cs",
@@ -103,18 +100,17 @@
               "RelativeToolTip": "3D_Printer_GCode_Commander\\ModuleMessage.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAACcAAAAWAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-06-14T19:16:06.138Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-06-14T19:16:06.138Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 1,
               "Title": "IntertaskMessage.cs",
               "DocumentMoniker": "D:\\Github\\3D_Printer_GCODE_Commander\\3D_Printer_GCode_Commander\\3D_Printer_GCode_Commander\\IntertaskMessage.cs",
               "RelativeDocumentMoniker": "3D_Printer_GCode_Commander\\IntertaskMessage.cs",
               "ToolTip": "D:\\Github\\3D_Printer_GCODE_Commander\\3D_Printer_GCode_Commander\\3D_Printer_GCode_Commander\\IntertaskMessage.cs",
               "RelativeToolTip": "3D_Printer_GCode_Commander\\IntertaskMessage.cs",
-              "ViewState": "AgIAAA0AAAAAAAAAAAAqwAkAAAAFAAAAAAAAAA==",
+              "ViewState": "AgIAAA0AAAAAAAAAAAAqwBEAAAAFAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-06-16T16:08:13.594Z",
               "EditorCaption": ""
@@ -129,8 +125,7 @@
               "RelativeToolTip": "3D_Printer_GCode_Commander\\GCodeCommand.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAABUAAAAcAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-06-15T20:53:36.353Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-06-15T20:53:36.353Z"
             }
           ]
         }
