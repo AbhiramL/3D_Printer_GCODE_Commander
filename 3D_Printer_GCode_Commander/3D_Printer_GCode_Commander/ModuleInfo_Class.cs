@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.IO.Ports;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -11,11 +13,12 @@ namespace _3D_Printer_GCode_Commander
     internal class ModuleInfo_Class
     {
         //public variables
+        public readonly MessageSender_e myClassName = MessageSender_e.Module_Info_Class;
 
         //private class variables
         private static ModuleInfo_Class ModuleInfo_instance = null;
-        //private SerialComm_Class SerialComm_Mgr;
-
+        //private DateTime requestSendTime, ackReceivedTime;
+        
         //private ui element variables
         private System.Windows.Forms.Panel ModuleInfo_Panel;
         private System.Windows.Forms.TextBox ModuleVersion_TextBox;
@@ -52,6 +55,22 @@ namespace _3D_Printer_GCode_Commander
         }
 
         /********************************************************
+         * Connect to module function
+         * 
+         * returns true if connection is made
+         *******************************************************/
+        public void ConnectToModule()
+        {
+            GCodeCommand gCodeCommand = new GCodeCommand(CommandType_e.I);
+
+            //special case 
+            gCodeCommand.gCodeString = "Module Identify Command";
+            IntertaskMessage serialMessage = new IntertaskMessage(myClassName, gCodeCommand);
+            
+            Commander_MainApp.RouteIntertaskMessage(MessageSender_e.Serial_Comm_Class, serialMessage);
+        }
+
+        /********************************************************
          * Build Panel Function
          * 
          * initializes Textboxes, Labels, a Panel, and a button
@@ -71,7 +90,7 @@ namespace _3D_Printer_GCode_Commander
             //
             // Panel init
             //
-            ModuleInfo_Panel.BackColor = System.Drawing.SystemColors.Info;
+            ModuleInfo_Panel.BackColor = System.Drawing.SystemColors.ControlLight; 
             ModuleInfo_Panel.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             ModuleInfo_Panel.Location = new System.Drawing.Point(340, 3);
             ModuleInfo_Panel.Name = "ModuleStatus_Panel";
@@ -100,6 +119,7 @@ namespace _3D_Printer_GCode_Commander
             ConnectToModule_Btn.TabIndex = 8;
             ConnectToModule_Btn.Text = "CONNECT TO MODULE";
             ConnectToModule_Btn.UseVisualStyleBackColor = false;
+            ConnectToModule_Btn.BackColor = System.Drawing.Color.Green;
             ConnectToModule_Btn.Click += new System.EventHandler(this.Connect_Btn_Click_Handler);
             // 
             // Connection Status TextBox and Status Label
@@ -160,14 +180,32 @@ namespace _3D_Printer_GCode_Commander
         }
 
         /********************************************************
+         * Serial Request Handler
+         * 
+         * 
+         *******************************************************/
+        public void ModuleConnectCmdAnswered(IntertaskMessage receivedMsg)
+        {
+            if(receivedMsg.moduleMsg.baseMessage.CmdType == CommandType_e.I)
+            {
+                //if success, then update panel
+                ModuleVersion_Label.Text = "";
+                ModuleVersion_TextBox.Text = "Connected";
+                ModuleInfo_Panel.BackColor = System.Drawing.SystemColors.Info;
+                ConnectToModule_Btn.Enabled = false;
+                ConnectToModule_Btn.BackColor = System.Drawing.Color.Gray;
+            }
+        }
+
+        /********************************************************
          * Button Click Handler
          * 
          * initializes Textboxes, Labels, a Panel, and a button
          *******************************************************/
         private void Connect_Btn_Click_Handler(object sender, EventArgs e)
         {
-            
-
+            //send a command to the module and await response
+            ConnectToModule();
         }
     }
 }

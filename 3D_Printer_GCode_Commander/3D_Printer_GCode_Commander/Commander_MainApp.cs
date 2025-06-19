@@ -12,7 +12,11 @@ namespace _3D_Printer_GCode_Commander
 {
     public partial class Commander_MainApp : Form
     {
-        private readonly double commander_version = 0.5;
+        //public variables
+        public readonly MessageSender_e myClassName = MessageSender_e.Gcode_Commander_Class;
+        public readonly double commander_version = 0.5;
+        
+        //private variables
         private ModuleInfo_Class ModuleInfo;
         private GCodeFileInfo_Class GCodeFileInfo;
         private SerialComm_Class SerialComm;
@@ -43,6 +47,40 @@ namespace _3D_Printer_GCode_Commander
             this.ClientSize = new System.Drawing.Size(1086, 510);
             this.ResumeLayout(false);
 
+        }
+
+        public static List<GCodeCommand> GetGCodeCommandList()
+        {
+            return GCodeFileInfo_Class.GetInstance().GetGCodeCommands();
+        }
+        public static void RouteIntertaskMessage(MessageSender_e Destination, IntertaskMessage request)
+        {
+            //is the serialComm class receiving this request?
+            if (Destination == MessageSender_e.Serial_Comm_Class)
+            {
+                //serialComm tasks want to route the request to the serialComm Class
+                SerialComm_Class.GetInstance().AddMessageToTxQueue(request);
+            }
+            else
+            {
+                //switch call appropriate class functions
+                switch (Destination)
+                {
+                    case MessageSender_e.Gcode_Commander_Class:
+                        //handle request
+                        break;
+                    case MessageSender_e.Module_Info_Class:
+                        //call moduleInfo handler
+                        ModuleInfo_Class.GetInstance().ModuleConnectCmdAnswered(request);
+                        break;
+                    case MessageSender_e.Diagnostic_Class:
+                        break;
+                    case MessageSender_e.Gcode_File_Info_Class:
+                        break;
+                    case MessageSender_e.Serial_Comm_Class:
+                        break;
+                }
+            }
         }
         
     }
