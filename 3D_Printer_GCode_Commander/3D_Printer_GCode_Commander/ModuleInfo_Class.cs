@@ -13,7 +13,7 @@ namespace _3D_Printer_GCode_Commander
     internal class ModuleInfo_Class
     {
         //public variables
-        public readonly Owner_e myClassName = Owner_e.Module_Info_Class;
+        public readonly MessageSender_e myClassName = MessageSender_e.Module_Info_Class;
 
         //private class variables
         private static ModuleInfo_Class ModuleInfo_instance = null;
@@ -59,7 +59,7 @@ namespace _3D_Printer_GCode_Commander
          * 
          * returns true if connection is made
          *******************************************************/
-        public void AttemptModuleConnection()
+        public void ConnectToModule()
         {
             GCodeCommand gCodeCommand = new GCodeCommand(CommandType_e.I);
 
@@ -67,7 +67,7 @@ namespace _3D_Printer_GCode_Commander
             gCodeCommand.gCodeString = "Module Identify Command";
             IntertaskMessage serialMessage = new IntertaskMessage(myClassName, gCodeCommand);
             
-            Commander_MainApp.RouteIntertaskMessage(Owner_e.Serial_Comm_Class, serialMessage);
+            Commander_MainApp.RouteIntertaskMessage(MessageSender_e.Serial_Comm_Class, serialMessage);
         }
 
         /********************************************************
@@ -90,7 +90,7 @@ namespace _3D_Printer_GCode_Commander
             //
             // Panel init
             //
-            ModuleInfo_Panel.BackColor = System.Drawing.SystemColors.Info;
+            ModuleInfo_Panel.BackColor = System.Drawing.SystemColors.ControlLight; 
             ModuleInfo_Panel.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             ModuleInfo_Panel.Location = new System.Drawing.Point(340, 3);
             ModuleInfo_Panel.Name = "ModuleStatus_Panel";
@@ -119,6 +119,7 @@ namespace _3D_Printer_GCode_Commander
             ConnectToModule_Btn.TabIndex = 8;
             ConnectToModule_Btn.Text = "CONNECT TO MODULE";
             ConnectToModule_Btn.UseVisualStyleBackColor = false;
+            ConnectToModule_Btn.BackColor = System.Drawing.Color.Green;
             ConnectToModule_Btn.Click += new System.EventHandler(this.Connect_Btn_Click_Handler);
             // 
             // Connection Status TextBox and Status Label
@@ -183,13 +184,16 @@ namespace _3D_Printer_GCode_Commander
          * 
          * 
          *******************************************************/
-        public void SerialRequestAnswered(IntertaskMessage receivedMsg)
+        public void ModuleConnectCmdAnswered(IntertaskMessage receivedMsg)
         {
             if(receivedMsg.moduleMsg.baseMessage.CmdType == CommandType_e.I)
             {
                 //if success, then update panel
                 ModuleVersion_Label.Text = "";
                 ModuleVersion_TextBox.Text = "Connected";
+                ModuleInfo_Panel.BackColor = System.Drawing.SystemColors.Info;
+                ConnectToModule_Btn.Enabled = false;
+                ConnectToModule_Btn.BackColor = System.Drawing.Color.Gray;
             }
         }
 
@@ -201,7 +205,7 @@ namespace _3D_Printer_GCode_Commander
         private void Connect_Btn_Click_Handler(object sender, EventArgs e)
         {
             //send a command to the module and await response
-            AttemptModuleConnection();
+            ConnectToModule();
         }
     }
 }

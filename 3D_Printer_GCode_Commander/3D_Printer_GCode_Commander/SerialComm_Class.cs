@@ -43,7 +43,10 @@ namespace _3D_Printer_GCode_Commander
     internal class SerialComm_Class
     {
         //public variables
-        public readonly Owner_e myClassName = Owner_e.Serial_Comm_Class;
+        public readonly MessageSender_e myClassName = MessageSender_e.Serial_Comm_Class;
+
+        //delegate function to update the sent and receive listboxes
+        public delegate void UpdateListBoxDelegate(byte[] message);
 
         //private variables
         private static SerialComm_Class SerialComm_Instance = null;
@@ -58,8 +61,7 @@ namespace _3D_Printer_GCode_Commander
         private NumDataBitsSelections_e dataBitsSelect;
         private CancellationTokenSource cancelTokenSource;
         private CancellationToken cancelToken;
-        private byte currentTransactID;
-
+        
         //private ui element variables
         //serialConfig panel elements
         private System.Windows.Forms.Panel   SerialConfig_Panel;
@@ -163,6 +165,7 @@ namespace _3D_Printer_GCode_Commander
                 //open new serial port instance
                 serialPort_Instance = new SerialPort(portSelect, (int)baudRateSelect, (Parity)paritySelect, (int)dataBitsSelect, (StopBits)stopBitSelect);
                 serialPort_Instance.Encoding = Encoding.ASCII;
+
                 serialPort_Instance.Open();
                 serialTransmitQueue.Clear();
                 //start async task to send transmit queue messages
@@ -170,6 +173,7 @@ namespace _3D_Printer_GCode_Commander
                 cancelToken = cancelTokenSource.Token;
                 Task.Run(() => SendSerialAsync(cancelToken));
                 Task.Run(() => ReceiveSerialAsync(cancelToken));
+
 
                 //reset transaction id
                 ModuleMessage.resetTransactionID();
@@ -221,6 +225,7 @@ namespace _3D_Printer_GCode_Commander
 
                         //remove request from list
                         serialMessageRequestQueue.RemoveAt(i);
+
                         break;
                     }
                 }
@@ -272,11 +277,13 @@ namespace _3D_Printer_GCode_Commander
         private async Task SendSerialAsync(CancellationToken token)
         {
             byte[] bytes;
+            UpdateListBoxDelegate delegateFunction = new UpdateListBoxDelegate(AddMessageToSentListbox);
 
-            while(!cancelTokenSource.IsCancellationRequested) //while task isnt cancelled
+            while (!cancelTokenSource.IsCancellationRequested) //while task isnt cancelled
             {
                 if ((serialPort_Instance != null) && (serialPort_Instance.IsOpen))
                 {
+                    //if serial port is busy writing bytes, then wait....
                     while (serialPort_Instance.BytesToWrite > 0)
                     {
                         await Task.Delay(300,token); 
@@ -289,11 +296,11 @@ namespace _3D_Printer_GCode_Commander
                         Console.WriteLine(BitConverter.ToString(bytes));
                         serialPort_Instance.Write(bytes, 0, bytes.Length);
 
-                        //add message to screen ui
-                        //AddSentMessage(bytes);
-
                         //dequeue 
                         serialTransmitQueue.RemoveAt(0);
+
+                        //add message to screen ui
+                        SerialComm_SentMsgs_ListBox.Invoke(delegateFunction, bytes);
                     }
                 }
 
@@ -311,6 +318,8 @@ namespace _3D_Printer_GCode_Commander
          *******************************************************/
         private async Task ReceiveSerialAsync(CancellationToken token)
         {
+            UpdateListBoxDelegate delegateFunction = new UpdateListBoxDelegate(AddMessageToReceiveListbox);
+
             while (!cancelTokenSource.IsCancellationRequested) //while task isnt cancelled
             {
                 if ((serialPort_Instance != null) && (serialPort_Instance.IsOpen))
@@ -328,8 +337,8 @@ namespace _3D_Printer_GCode_Commander
                         //invoke the SerialComm class route message function
                         RouteReceivedMessage(receivedMessage);
 
-                        //add message to the ui screen
-                        //AddRecMessage(receivedMessage.GetByteArray());
+                        //add message to screen ui (assuming invoke required...)
+                        SerialComm_ReceivedMsgs_ListBox.Invoke(delegateFunction, receivedMessage.GetByteArray());
 
                         //since the message is valid, remove bytes in receive queue until the message's sync is found
                         while (serialReceiveQueue[0] != receivedMessage.baseMessage.Sync)
@@ -414,6 +423,7 @@ namespace _3D_Printer_GCode_Commander
             SerialConfig_OpenPort_Btn.TabIndex = 11;
             SerialConfig_OpenPort_Btn.Text = "OPEN";
             SerialConfig_OpenPort_Btn.UseVisualStyleBackColor = false;
+            SerialConfig_OpenPort_Btn.BackColor = System.Drawing.Color.Green;
             SerialConfig_OpenPort_Btn.Click += new System.EventHandler(this.SerialConfig_OpenPort_Btn_Click_Handler);
             // 
             // SerialConfig_DataBits_TextBox
@@ -596,6 +606,7 @@ namespace _3D_Printer_GCode_Commander
             SerialComm_StartComm_Btn.TabIndex = 5;
             SerialComm_StartComm_Btn.Text = "Start";
             SerialComm_StartComm_Btn.UseVisualStyleBackColor = true;
+            SerialComm_StartComm_Btn.BackColor = System.Drawing.Color.Green;
             SerialComm_StartComm_Btn.Click += new System.EventHandler(this.SerialComm_StartComm_Btn_Click_Handler);
             // 
             // SerialComm_ReceivedMsgsHeader_TextBox
@@ -717,26 +728,61 @@ namespace _3D_Printer_GCode_Commander
          * 
          * update the ui elements of the comm panel
          *******************************************************/
-        private void AddSentMessage(byte[] message)
+        public void AddMessageToSentListbox(byte[] message)
         {
-            SerialComm_SentMsgs_ListBox.Items.Add(BitConverter.ToString(message));
-
-            //maintain 10 messages in the sent message box
             if (SerialComm_SentMsgs_ListBox.Items.Count > 10)
             {
                 SerialComm_SentMsgs_ListBox.Items.RemoveAt(0);
             }
+
+            SerialComm_SentMsgs_ListBox.Items.Add(BitConverter.ToString(message));
+
+            //check if transmit queue is empty, then re-enable the start button
+            if((serialTransmitQueue.Count == 0) && (SerialComm_StartComm_Btn.Enabled == false)) 
+            {
+                SerialComm_StartComm_Btn.Enabled = true;
+                SerialComm_StartComm_Btn.BackColor = System.Drawing.Color.Green;
+                SerialComm_Panel.BackColor = System.Drawing.SystemColors.ControlLight;
+            }
+            
+            /*try
+            {
+                if (SerialComm_SentMsgs_ListBox.InvokeRequired)
+                {
+                    SerialComm_SentMsgs_ListBox.Invoke(new Action(() =>
+                    {
+                        if (SerialComm_SentMsgs_ListBox.Items.Count > 10)
+                        {
+                            SerialComm_SentMsgs_ListBox.Items.RemoveAt(0);
+                        }
+
+                        SerialComm_SentMsgs_ListBox.Items.Add(BitConverter.ToString(message));
+                    }));
+                }
+                else
+                {
+                    if (SerialComm_SentMsgs_ListBox.Items.Count > 10)
+                    {
+                        SerialComm_SentMsgs_ListBox.Items.RemoveAt(0);
+                    }
+                    SerialComm_SentMsgs_ListBox.Items.Add(BitConverter.ToString(message));
+                }
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }*/
         }
 
-        private void AddRecMessage(byte[] message)
+        public void AddMessageToReceiveListbox(byte[] message)
         {
-            SerialComm_ReceivedMsgs_ListBox.Items.Add(BitConverter.ToString(message));
-
             //maintain 10 messages in the received message box
             if (SerialComm_ReceivedMsgs_ListBox.Items.Count > 10)
             {
                 SerialComm_ReceivedMsgs_ListBox.Items.RemoveAt(0);
             }
+
+            SerialComm_ReceivedMsgs_ListBox.Items.Add(BitConverter.ToString(message));
         }
 
         private void ClearCommMenus()
@@ -797,15 +843,37 @@ namespace _3D_Printer_GCode_Commander
         private void SerialConfig_ClosePort_Btn_Click_Handler(object sender, EventArgs e)
         {
             ClosePort();
-            SerialConfig_OpenPort_Btn.BackColor = System.Drawing.Color.Gray;
+            SerialConfig_OpenPort_Btn.BackColor = System.Drawing.Color.Green;
             SerialConfig_ClosePort_Btn.BackColor = System.Drawing.Color.Gray;
+
+            //enable all port options until the port is opened
+            SerialConfig_Ports_ComboBox.Enabled =     true;
+            SerialConfig_BaudRates_ComboBox.Enabled = true;
+            SerialConfig_Parities_ComboBox.Enabled =  true;
+            SerialConfig_DataBits_ComboBox.Enabled =  true;
+            SerialConfig_StopBits_ComboBox.Enabled =  true;
+            SerialConfig_FindPorts_Btn.Enabled = true;
+
+            //change panel color to default to show that a port needs to be init-ed
+            SerialConfig_Panel.BackColor = System.Drawing.SystemColors.ControlLight;
         }
         private void SerialConfig_OpenPort_Btn_Click_Handler(object sender, EventArgs e)
         {
             if(OpenPort())
             {
-                SerialConfig_OpenPort_Btn.BackColor = System.Drawing.Color.Green;
+                SerialConfig_OpenPort_Btn.BackColor = System.Drawing.Color.Gray;
                 SerialConfig_ClosePort_Btn.BackColor = System.Drawing.Color.Red;
+
+                //disable all port options until the port is closed
+                SerialConfig_Ports_ComboBox.Enabled = false;
+                SerialConfig_BaudRates_ComboBox.Enabled = false;
+                SerialConfig_Parities_ComboBox.Enabled = false;
+                SerialConfig_DataBits_ComboBox.Enabled = false;
+                SerialConfig_StopBits_ComboBox.Enabled = false;
+                SerialConfig_FindPorts_Btn.Enabled = false;
+
+                //change panel color to reflect user decision
+                SerialConfig_Panel.BackColor = System.Drawing.SystemColors.Info;
             }
         }
         private void SerialComm_StartComm_Btn_Click_Handler(object sender, EventArgs e)
@@ -825,6 +893,10 @@ namespace _3D_Printer_GCode_Commander
 
                 //grey out the start button
                 SerialComm_StartComm_Btn.Enabled = false;
+                SerialComm_StartComm_Btn.BackColor = System.Drawing.Color.Gray;
+
+                //modify panel color to show it is doing a process
+                SerialComm_Panel.BackColor= System.Drawing.SystemColors.Info;
             }
         }
 

@@ -13,7 +13,7 @@ namespace _3D_Printer_GCode_Commander
     public partial class Commander_MainApp : Form
     {
         //public variables
-        public readonly Owner_e myClassName = Owner_e.Gcode_Commander_Class;
+        public readonly MessageSender_e myClassName = MessageSender_e.Gcode_Commander_Class;
         public readonly double commander_version = 0.5;
         
         //private variables
@@ -53,10 +53,10 @@ namespace _3D_Printer_GCode_Commander
         {
             return GCodeFileInfo_Class.GetInstance().GetGCodeCommands();
         }
-        public static void RouteIntertaskMessage(Owner_e Destination, IntertaskMessage request)
+        public static void RouteIntertaskMessage(MessageSender_e Destination, IntertaskMessage request)
         {
             //is the serialComm class receiving this request?
-            if (Destination == Owner_e.Serial_Comm_Class)
+            if (Destination == MessageSender_e.Serial_Comm_Class)
             {
                 //serialComm tasks want to route the request to the serialComm Class
                 SerialComm_Class.GetInstance().AddMessageToTxQueue(request);
@@ -66,18 +66,18 @@ namespace _3D_Printer_GCode_Commander
                 //switch call appropriate class functions
                 switch (Destination)
                 {
-                    case Owner_e.Gcode_Commander_Class:
+                    case MessageSender_e.Gcode_Commander_Class:
                         //handle request
                         break;
-                    case Owner_e.Module_Info_Class:
+                    case MessageSender_e.Module_Info_Class:
                         //call moduleInfo handler
-                        ModuleInfo_Class.GetInstance().SerialRequestAnswered(request);
+                        ModuleInfo_Class.GetInstance().ModuleConnectCmdAnswered(request);
                         break;
-                    case Owner_e.Diagnostic_Class:
+                    case MessageSender_e.Diagnostic_Class:
                         break;
-                    case Owner_e.Gcode_File_Info_Class:
+                    case MessageSender_e.Gcode_File_Info_Class:
                         break;
-                    case Owner_e.Serial_Comm_Class:
+                    case MessageSender_e.Serial_Comm_Class:
                         break;
                 }
             }

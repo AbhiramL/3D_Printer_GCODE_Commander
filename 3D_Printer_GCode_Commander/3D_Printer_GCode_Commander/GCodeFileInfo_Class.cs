@@ -12,7 +12,7 @@ namespace _3D_Printer_GCode_Commander
     internal class GCodeFileInfo_Class
     {
         //public variables
-        public readonly Owner_e myClassName = Owner_e.Gcode_File_Info_Class;
+        public readonly MessageSender_e myClassName = MessageSender_e.Gcode_File_Info_Class;
 
         //private variables
         private static GCodeFileInfo_Class GCodeFileInfo_Instance = null;
@@ -30,6 +30,7 @@ namespace _3D_Printer_GCode_Commander
         private System.Windows.Forms.Label   GCFileSize_Label;
         private System.Windows.Forms.Label   GCFileDate_Label;
         private System.Windows.Forms.Button  GCFileLoad_Btn;
+        private System.Windows.Forms.Button GCFileUnload_Btn;
         private System.Windows.Forms.CheckBox GCFileValidity_Checkbox;
 
 
@@ -90,6 +91,10 @@ namespace _3D_Printer_GCode_Commander
             GCFileSize_Label.Text = "";
             GCFileLocation = "";
             GCFileReader.Close();
+
+            //clear any cmds that were read
+            GCodeCmdList.Clear();
+            GCodeCmdList = null;
 
         }
 
@@ -162,6 +167,7 @@ namespace _3D_Printer_GCode_Commander
             GCFileSize_Label = new System.Windows.Forms.Label();
             GCFileDate_Label = new System.Windows.Forms.Label();
             GCFileLoad_Btn = new System.Windows.Forms.Button();
+            GCFileUnload_Btn = new System.Windows.Forms.Button();
             GCFileValidity_Checkbox = new System.Windows.Forms.CheckBox();
             GCodeFileInfo_Panel.SuspendLayout();
 
@@ -178,13 +184,26 @@ namespace _3D_Printer_GCode_Commander
             // 
             // LoadFile_Btn
             // 
-            GCFileLoad_Btn.Location = new System.Drawing.Point(105, 250);
+            GCFileLoad_Btn.Location = new System.Drawing.Point(35, 257);
             GCFileLoad_Btn.Name = "GCFileLoad_Btn";
-            GCFileLoad_Btn.Size = new System.Drawing.Size(122, 31);
+            GCFileLoad_Btn.Size = new System.Drawing.Size(122, 29);
             GCFileLoad_Btn.TabIndex = 2;
             GCFileLoad_Btn.Text = "Load Gcode File";
             GCFileLoad_Btn.UseVisualStyleBackColor = true;
+            GCFileLoad_Btn.BackColor = System.Drawing.Color.Green;
             GCFileLoad_Btn.Click += new System.EventHandler(GCFileLoad_Btn_Click_Handler);
+            // 
+            // UnloadFile_Btn
+            // 
+            GCFileUnload_Btn.Location = new System.Drawing.Point(167, 257);
+            GCFileUnload_Btn.Name = "GCFileUnload_Btn";
+            GCFileUnload_Btn.Size = new System.Drawing.Size(122, 29);
+            GCFileUnload_Btn.TabIndex = 2;
+            GCFileUnload_Btn.Text = "Unload Gcode File";
+            GCFileUnload_Btn.UseVisualStyleBackColor = true;
+            GCFileUnload_Btn.BackColor = System.Drawing.Color.Gray;
+            GCFileUnload_Btn.Enabled = false;
+            GCFileUnload_Btn.Click += new System.EventHandler(GCFileUnload_Btn_Click_Handler);
             // 
             // PanelHeader_TextBox
             // 
@@ -266,16 +285,19 @@ namespace _3D_Printer_GCode_Commander
             //
             // Validity checkbox
             //
-            GCFileValidity_Checkbox.Text = "File Validity";
+            GCFileValidity_Checkbox.Text = "File is Valid";
             GCFileValidity_Checkbox.AutoCheck = false;
-            GCFileValidity_Checkbox.Location = new System.Drawing.Point(15, 210);
+            GCFileValidity_Checkbox.Location = new System.Drawing.Point(15, 220);
             GCFileValidity_Checkbox.Name = "GCFileValidity_Checkbox";
             GCFileValidity_Checkbox.AutoSize = true;
             GCFileValidity_Checkbox.Visible = false;
+            GCFileValidity_Checkbox.CheckAlign = System.Drawing.ContentAlignment.MiddleRight;
+            GCFileValidity_Checkbox.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
 
 
             //Add elements to panel
             GCodeFileInfo_Panel.Controls.Add(this.GCFileLoad_Btn);
+            GCodeFileInfo_Panel.Controls.Add(this.GCFileUnload_Btn);
             GCodeFileInfo_Panel.Controls.Add(this.GCodeFileInfoPanelHeader_TextBox);
             GCodeFileInfo_Panel.Controls.Add(this.GCodeFileNameHeader_TextBox);
             GCodeFileInfo_Panel.Controls.Add(this.GCodeFileSizeHeader_TextBox);
@@ -308,18 +330,34 @@ namespace _3D_Printer_GCode_Commander
         private void GCFileLoad_Btn_Click_Handler(object sender, EventArgs e)
         {
             LoadFile();
-            if(ReadAndValidateFile())
+
+            GCFileValidity_Checkbox.Visible = true;
+            GCFileUnload_Btn.Enabled = true;
+            GCFileLoad_Btn.Enabled = false;
+            GCFileUnload_Btn.BackColor = System.Drawing.Color.Red;
+            GCFileLoad_Btn.BackColor = System.Drawing.Color.Gray;
+
+            if (ReadAndValidateFile())
             {
-                GCFileValidity_Checkbox.Visible=true;
+                //valid file was loaded, modify ui to show validity
                 GCFileValidity_Checkbox.Checked=true;
+                GCodeFileInfo_Panel.BackColor = System.Drawing.SystemColors.Info;
             }
             else
             {
-                GCFileValidity_Checkbox.Visible = true;
                 GCFileValidity_Checkbox.Checked = false;
             }
         }
 
-
+        private void GCFileUnload_Btn_Click_Handler(object sender, EventArgs e)
+        {
+            UnloadFile();
+            GCFileValidity_Checkbox.Visible = false;
+            GCFileLoad_Btn.Enabled = true;
+            GCFileUnload_Btn.Enabled = false;
+            GCodeFileInfo_Panel.BackColor = System.Drawing.SystemColors.ControlLight;
+            GCFileUnload_Btn.BackColor = System.Drawing.Color.Gray;
+            GCFileLoad_Btn.BackColor = System.Drawing.Color.Green;
+        }
     }
 }

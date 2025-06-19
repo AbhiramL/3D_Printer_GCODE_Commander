@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace _3D_Printer_GCode_Commander
 {
-    public enum Owner_e : byte
+    public enum MessageSender_e : byte
     {
         Gcode_Commander_Class,
         Module_Info_Class,
@@ -17,19 +17,19 @@ namespace _3D_Printer_GCode_Commander
     public class IntertaskMessage
     {
         //public variables
-        public Owner_e messageOwner;
+        public MessageSender_e messageOwner;
         public ModuleMessage moduleMsg;
 
         //private variables
 
         private IntertaskMessage() { }
         
-        public IntertaskMessage(Owner_e messageOwner, GCodeCommand data)
+        public IntertaskMessage(MessageSender_e messageOwner, GCodeCommand data)
         {
             this.messageOwner = messageOwner;
             this.moduleMsg = new ModuleMessage(data);
         }
-        public IntertaskMessage(Owner_e messageOwner, ModuleMessage data)
+        public IntertaskMessage(MessageSender_e messageOwner, ModuleMessage data)
         {
             this.messageOwner = messageOwner;
             this.moduleMsg = data;
