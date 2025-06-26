@@ -92,9 +92,9 @@ namespace _3D_Printer_GCode_Commander
             {
                 varMessage.Data = new float[0];
             }
-            baseMessage.Checksum = CalculateChecksum();
 
-            baseMessage.NumBytes = (ushort)(9 + (4*count));
+            baseMessage.NumBytes = (ushort)(9 + (4 * count));
+            baseMessage.Checksum = CalculateChecksum();
 
             isValid = true;
         }
@@ -146,9 +146,13 @@ namespace _3D_Printer_GCode_Commander
                 numBytesRead += 2;
 
                 //read (float) data.
+                varMessage.Data = new float[(receivedBytes.Length - numBytesRead)/(sizeof(float))];
+                int counter = 0;
+
                 for (int i = numBytesRead; i < receivedBytes.Length; i+= sizeof(float))
                 {
-                    varMessage.Data[i] = BitConverter.ToSingle(receivedBytes, i);
+                    varMessage.Data[counter] = BitConverter.ToSingle(receivedBytes, i);
+                    counter++;
                 }
 
                 //verify Checksum
@@ -171,6 +175,14 @@ namespace _3D_Printer_GCode_Commander
          *******************************************************/
         public byte[] GetByteArray()
         {
+            /* Base message struct:
+             *  public byte Sync;                // 1 byte - Sync identifier
+                public ushort NumBytes;          // 2 byte - Message size 
+                public byte TransactID;          // 1 byte - Current Message Identifier
+                public ushort Checksum;          // 2 bytes - Checksum 
+                public CommandType_e CmdType;      // 1 byte - 'G' or 'M'
+                public ushort CmdID;             // 2 byte int
+             */
             List<byte> buffer = new List<byte>();
 
             buffer.Add(baseMessage.Sync);
@@ -198,13 +210,41 @@ namespace _3D_Printer_GCode_Commander
          *******************************************************/
         private ushort CalculateChecksum()
         {
-            ushort checksum = 0;
-           /* checksum = (ushort)((ushort)CmdType + (ushort)CmdID);
-            for (int i = 0; i < NumBytes - 8; i++)
+            /* Base message struct:
+             *  public byte Sync;                // 1 byte - Sync identifier
+                public ushort NumBytes;          // 2 byte - Message size 
+                public byte TransactID;          // 1 byte - Current Message Identifier
+                public ushort Checksum;          // 2 bytes - Checksum 
+                public CommandType_e CmdType;      // 1 byte - 'G' or 'M'
+                public ushort CmdID;             // 2 byte int
+             */
+            ushort originalChecksum;
+            int calculatedChecksum = 0;
+            ushort numBytes;
+            byte[] messageBytes;
+
+            //save the received checksum value
+            originalChecksum = baseMessage.Checksum;
+
+            //zero out msg's checksum
+            baseMessage.Checksum = 0;
+
+            //typecast msg to a byte array
+            numBytes = baseMessage.NumBytes;
+            messageBytes = GetByteArray();
+
+            for (int i = 0; i < numBytes; i++)
             {
-                checksum += (byte)Data[i];
-            }*/
-            return (checksum);
+                calculatedChecksum += messageBytes[i];
+                calculatedChecksum += ((calculatedChecksum & 0xFF) << 8) + 0x100;
+                calculatedChecksum = (calculatedChecksum ^ (calculatedChecksum >> 16)) & 0xFFFF;
+            }
+
+            //restore orig checksum to msg structure
+            baseMessage.Checksum = originalChecksum;
+
+            //return truncated checksum
+            return (ushort)calculatedChecksum;
         }
     }
 }

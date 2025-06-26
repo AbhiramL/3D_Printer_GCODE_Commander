@@ -223,7 +223,7 @@ namespace _3D_Printer_GCode_Commander
             // 
             GCodeFileNameHeader_TextBox.ReadOnly = true;
             GCodeFileNameHeader_TextBox.BackColor = System.Drawing.SystemColors.ButtonHighlight;
-            GCodeFileNameHeader_TextBox.Location = new System.Drawing.Point(12, 80);
+            GCodeFileNameHeader_TextBox.Location = new System.Drawing.Point(12, 50);
             GCodeFileNameHeader_TextBox.Name = "GCodeFileNameHeader_TextBox";
             GCodeFileNameHeader_TextBox.Size = new System.Drawing.Size(87, 22);
             GCodeFileNameHeader_TextBox.TabIndex = 6;
@@ -255,9 +255,10 @@ namespace _3D_Printer_GCode_Commander
             // Label to hold file name
             // 
             GCFileName_Label.AutoSize = true;
+            GCFileName_Label.MaximumSize = new System.Drawing.Size(200, 80); //wraps text if too long
             GCFileName_Label.BackColor = System.Drawing.SystemColors.ButtonHighlight;
             GCFileName_Label.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
-            GCFileName_Label.Location = new System.Drawing.Point(105, 80);
+            GCFileName_Label.Location = new System.Drawing.Point(105, 50);
             GCFileName_Label.Name = "GCFileName_Label";
             GCFileName_Label.Size = new System.Drawing.Size(0, 16);
             GCFileName_Label.TabIndex = 3;
@@ -285,9 +286,9 @@ namespace _3D_Printer_GCode_Commander
             //
             // Validity checkbox
             //
-            GCFileValidity_Checkbox.Text = "File is Valid";
+            GCFileValidity_Checkbox.Text = "File is Valid:";
             GCFileValidity_Checkbox.AutoCheck = false;
-            GCFileValidity_Checkbox.Location = new System.Drawing.Point(15, 220);
+            GCFileValidity_Checkbox.Location = new System.Drawing.Point(15, 90);
             GCFileValidity_Checkbox.Name = "GCFileValidity_Checkbox";
             GCFileValidity_Checkbox.AutoSize = true;
             GCFileValidity_Checkbox.Visible = false;
