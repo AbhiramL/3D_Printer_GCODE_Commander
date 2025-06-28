@@ -168,6 +168,10 @@ namespace _3D_Printer_GCode_Commander
 
                 serialPort_Instance.Open();
                 serialTransmitQueue.Clear();
+
+                //hook serial recieve handler to serial port instance
+                serialPort_Instance.DataReceived += SerialPort_DataReceived;
+
                 //start async task to send transmit queue messages
                 cancelTokenSource = new CancellationTokenSource();
                 cancelToken = cancelTokenSource.Token;
@@ -176,7 +180,7 @@ namespace _3D_Printer_GCode_Commander
 
 
                 //reset transaction id
-                ModuleMessage.resetTransactionID();
+                ModuleMessage.ResetTransactionID();
 
                 retVal = true;
             }
@@ -221,7 +225,7 @@ namespace _3D_Printer_GCode_Commander
                     {
                         //found the owner, add the incomming message and route the request
                         serialMessageRequestQueue[i].moduleMsg = incommingMessage;
-                        Commander_MainApp.RouteIntertaskMessage(myClassName, serialMessageRequestQueue[i]);
+                        Commander_MainApp.RouteIntertaskMessage(serialMessageRequestQueue[i].messageOwner, serialMessageRequestQueue[i]);
 
                         //remove request from list
                         serialMessageRequestQueue.RemoveAt(i);
@@ -350,7 +354,7 @@ namespace _3D_Printer_GCode_Commander
                         serialReceiveQueue.RemoveAt(0);
                     }
                 }
-                await Task.Delay(500, token); // Pass the token to ensure safe cancellation
+                await Task.Delay(1000, token); // Pass the token to ensure safe cancellation
             }
         }
 

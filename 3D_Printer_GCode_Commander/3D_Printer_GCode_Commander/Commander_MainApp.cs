@@ -55,31 +55,30 @@ namespace _3D_Printer_GCode_Commander
         }
         public static void RouteIntertaskMessage(MessageSender_e Destination, IntertaskMessage request)
         {
-            //is the serialComm class receiving this request?
-            if (Destination == MessageSender_e.Serial_Comm_Class)
+            //need to check message type: and switch
+            //
+            //
+            //
+            //
+            
+            //call the appropriate class functions
+            switch (Destination)
             {
-                //serialComm tasks want to route the request to the serialComm Class
-                SerialComm_Class.GetInstance().AddMessageToTxQueue(request);
-            }
-            else
-            {
-                //switch call appropriate class functions
-                switch (Destination)
-                {
-                    case MessageSender_e.Gcode_Commander_Class:
-                        //handle request
-                        break;
-                    case MessageSender_e.Module_Info_Class:
-                        //call moduleInfo handler
-                        ModuleInfo_Class.GetInstance().ModuleConnectCmdAnswered(request);
-                        break;
-                    case MessageSender_e.Diagnostic_Class:
-                        break;
-                    case MessageSender_e.Gcode_File_Info_Class:
-                        break;
-                    case MessageSender_e.Serial_Comm_Class:
-                        break;
-                }
+                case MessageSender_e.Gcode_Commander_Class:
+                    //handle request
+                    break;
+                case MessageSender_e.Module_Info_Class:
+                    //call moduleInfo handler
+                    ModuleInfo_Class.GetInstance().AddIntertaskMsgToQueue(request);
+                    break;
+                case MessageSender_e.Diagnostic_Class:
+                    break;
+                case MessageSender_e.Gcode_File_Info_Class:
+                    break;
+                case MessageSender_e.Serial_Comm_Class:
+                    SerialComm_Class.GetInstance().AddMessageToTxQueue(request);
+                    break;
+                
             }
         }
         

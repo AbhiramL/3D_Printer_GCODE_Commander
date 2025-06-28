@@ -37,7 +37,7 @@ namespace _3D_Printer_GCode_Commander
         //public variable
         public bool isValid;
 
-        public static void resetTransactionID()
+        public static void ResetTransactionID()
         {
             currTransactID = 0;
         }
@@ -120,7 +120,7 @@ namespace _3D_Printer_GCode_Commander
             }
 
             //did we see the Sync byte and are there enough bytes to process base message?
-            if ((receivedBytes[numBytesRead] == 0xB7) && ((numBytesRead + 9 ) < receivedBytes.Length) )
+            if ((receivedBytes[numBytesRead] == 0xB7) && ((numBytesRead + 9 ) <= receivedBytes.Length) )
             {
                 //sync found. 
 
