@@ -14,7 +14,7 @@ namespace _3D_Printer_GCode_Commander
     internal class ModuleInfo_Class
     {
         //public variables
-        public readonly MessageSender_e myClassName = MessageSender_e.Module_Info_Class;
+        public readonly ClassNames_e myClassName = ClassNames_e.Module_Info_Class;
 
         //private class variables
         private static ModuleInfo_Class ModuleInfo_instance = null;
@@ -40,9 +40,9 @@ namespace _3D_Printer_GCode_Commander
 
             ittMsgRequestQueue = new List<IntertaskMessage>();
 
-            connStatusCheckTimer = new System.Timers.Timer(2000); //2 second timeout timer
+            connStatusCheckTimer = new System.Timers.Timer(5000); //2 second timeout timer
             connStatusCheckTimer.Elapsed += CheckModuleAck;
-            connStatusCheckTimer.AutoReset = false; // Run only once
+            connStatusCheckTimer.AutoReset = true; // Run only once
 
             //Acquire Serial Comm manager instance.
             //SerialComm_Mgr = SerialComm_Class.GetInstance();
@@ -64,8 +64,8 @@ namespace _3D_Printer_GCode_Commander
 
         /********************************************************
          * Connect to module function
+         * Sends Identify cmd to module and starts a timer
          * 
-         * returns true if connection is made
          *******************************************************/
         public void ConnectToModule()
         {
@@ -78,10 +78,11 @@ namespace _3D_Printer_GCode_Commander
             IntertaskMessage serialMessage = new IntertaskMessage(myClassName, gCodeCommand);
             
             //route to serialComm_class
-            Commander_MainApp.RouteIntertaskMessage(MessageSender_e.Serial_Comm_Class, serialMessage);
+            Commander_MainApp.RouteIntertaskMessage(ClassNames_e.Serial_Comm_Class, serialMessage);
 
             //start timer, on timeout we will check the intertask queue and see if we have
             //a module message...
+            connStatusCheckTimer.Interval = 1000;
             connStatusCheckTimer.Start();
         }
 
@@ -215,14 +216,20 @@ namespace _3D_Printer_GCode_Commander
 
             if (ittMsgRequestQueue.Count != 0)
             {
+                //ittMsgRequestQueue.Last().moduleMsg.baseMessage.CmdType;
                 for (byte i = 0; i < ittMsgRequestQueue.Count; i++)
                 {
                     if (ittMsgRequestQueue[i].moduleMsg.baseMessage.CmdType == CommandType_e.I)
                     {
+                        //connected to module
                         received_major = (byte)((ittMsgRequestQueue[i].moduleMsg.baseMessage.CmdID >> 8) & 0xFF);
                         received_minor = (byte)((ittMsgRequestQueue[i].moduleMsg.baseMessage.CmdID & 0xFF));
                         isModConnected = true;                        
-                        break;
+                    }
+                    else if(ittMsgRequestQueue[i].moduleMsg.baseMessage.CmdType == CommandType_e.E)
+                    {
+                        //disconnected from module
+                        isModConnected = false;
                     }
                 }//end for loop
             }
@@ -232,22 +239,29 @@ namespace _3D_Printer_GCode_Commander
             {
                 ConnStatus_Label.Invoke(new Action(() =>
                 {
-                    UpdateConnectionUI(isModConnected, received_major, received_minor);
+                    UpdateUI(isModConnected, received_major, received_minor);
                 }));
             }
             else
             {
-                UpdateConnectionUI(isModConnected, received_major, received_minor);
+                UpdateUI(isModConnected, received_major, received_minor);
             }
             ittMsgRequestQueue.Clear();
         }
 
-        private void UpdateConnectionUI(bool isConnected, byte major, byte minor)
+        private void UpdateUI(bool isConnected, byte major, byte minor)
         {
+            if(isConnected)
+            {
+                //change timer interval to timeout every 5 seconds
+                connStatusCheckTimer.Interval = 5000;
+            }
+
             ModuleVersion_Label.Text = isConnected ? major + "." + minor : "-";
             ConnStatus_Label.Text = isConnected ? "CONNECTED" : "NOT CONNECTED";
             ModuleInfo_Panel.BackColor = isConnected ? System.Drawing.SystemColors.Info : System.Drawing.SystemColors.ControlLight;
         }
+       
 
         /********************************************************
          * Button Click Handler

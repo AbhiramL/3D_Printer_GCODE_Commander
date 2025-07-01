@@ -13,7 +13,7 @@ namespace _3D_Printer_GCode_Commander
     public partial class Commander_MainApp : Form
     {
         //public variables
-        public readonly MessageSender_e myClassName = MessageSender_e.Gcode_Commander_Class;
+        public readonly ClassNames_e myClassName = ClassNames_e.Gcode_Commander_Class;
         public readonly double commander_version = 0.5;
         
         //private variables
@@ -53,7 +53,7 @@ namespace _3D_Printer_GCode_Commander
         {
             return GCodeFileInfo_Class.GetInstance().GetGCodeCommands();
         }
-        public static void RouteIntertaskMessage(MessageSender_e Destination, IntertaskMessage request)
+        public static void RouteIntertaskMessage(ClassNames_e Destination, IntertaskMessage request)
         {
             //need to check message type: and switch
             //
@@ -64,18 +64,18 @@ namespace _3D_Printer_GCode_Commander
             //call the appropriate class functions
             switch (Destination)
             {
-                case MessageSender_e.Gcode_Commander_Class:
+                case ClassNames_e.Gcode_Commander_Class:
                     //handle request
                     break;
-                case MessageSender_e.Module_Info_Class:
+                case ClassNames_e.Module_Info_Class:
                     //call moduleInfo handler
                     ModuleInfo_Class.GetInstance().AddIntertaskMsgToQueue(request);
                     break;
-                case MessageSender_e.Diagnostic_Class:
+                case ClassNames_e.Diagnostic_Class:
                     break;
-                case MessageSender_e.Gcode_File_Info_Class:
+                case ClassNames_e.Gcode_File_Info_Class:
                     break;
-                case MessageSender_e.Serial_Comm_Class:
+                case ClassNames_e.Serial_Comm_Class:
                     SerialComm_Class.GetInstance().AddMessageToTxQueue(request);
                     break;
                 

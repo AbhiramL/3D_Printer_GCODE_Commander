@@ -11,7 +11,7 @@ namespace _3D_Printer_GCode_Commander
         G = 0,
         M = 1,
         I = 2, //Identify command
-        R = 3,
+        R = 3, //Diagnostic Report
         C = 4, //in-line Comment
         E = 0xF  //error
     };

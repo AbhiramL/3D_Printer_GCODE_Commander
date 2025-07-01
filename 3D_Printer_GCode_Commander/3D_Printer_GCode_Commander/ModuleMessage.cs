@@ -36,6 +36,7 @@ namespace _3D_Printer_GCode_Commander
 
         //public variable
         public bool isValid;
+        public byte? locationIdx; //byte? allows assigning of null values
 
         public static void ResetTransactionID()
         {
@@ -56,6 +57,7 @@ namespace _3D_Printer_GCode_Commander
             baseMessage.NumBytes = 9;
             baseMessage.Checksum = CalculateChecksum();
             isValid = true;
+            locationIdx = null;
         }
         public ModuleMessage(CommandType_e cmdType, ushort cmdId)
         {
@@ -67,6 +69,7 @@ namespace _3D_Printer_GCode_Commander
             baseMessage.NumBytes = 9;
             baseMessage.Checksum = CalculateChecksum();
             isValid = true;
+            locationIdx = null;
         }//end constructor
 
         public ModuleMessage(GCodeCommand gCode)
@@ -97,6 +100,7 @@ namespace _3D_Printer_GCode_Commander
             baseMessage.Checksum = CalculateChecksum();
 
             isValid = true;
+            locationIdx = null;
         }
 
         /********************************************************
@@ -107,7 +111,7 @@ namespace _3D_Printer_GCode_Commander
          *******************************************************/
         public ModuleMessage(byte[] receivedBytes)
         {
-            int numBytesRead = 0;
+            byte numBytesRead = 0;
 
             //assuming invalid message
             isValid = false;
@@ -160,10 +164,12 @@ namespace _3D_Printer_GCode_Commander
                 {
                     //set validity
                     isValid = true;
+                    locationIdx = (byte)(numBytesRead - baseMessage.NumBytes);
                 }
                 else
                 {
                     isValid = false;
+                    locationIdx = null;
                 }
             }
         }

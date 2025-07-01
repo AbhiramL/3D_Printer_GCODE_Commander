@@ -43,7 +43,7 @@ namespace _3D_Printer_GCode_Commander
     internal class SerialComm_Class
     {
         //public variables
-        public readonly MessageSender_e myClassName = MessageSender_e.Serial_Comm_Class;
+        public readonly ClassNames_e myClassName = ClassNames_e.Serial_Comm_Class;
 
         //delegate function to update the sent and receive listboxes
         public delegate void UpdateListBoxDelegate(byte[] message);
@@ -204,6 +204,10 @@ namespace _3D_Printer_GCode_Commander
                 ClearCommMenus();
 
                 serialTransmitQueue.Clear();
+
+                //send message to moduleInfoClass that module disconnection is occuring
+                Commander_MainApp.RouteIntertaskMessage(ClassNames_e.Module_Info_Class,
+                      new IntertaskMessage(ClassNames_e.Serial_Comm_Class, new GCodeCommand(CommandType_e.E)));
             }
         }
 
@@ -336,7 +340,7 @@ namespace _3D_Printer_GCode_Commander
                     ModuleMessage receivedMessage = new ModuleMessage(serialReceiveQueue.ToArray());
 
                     //if received message is valid
-                    if(receivedMessage.isValid)
+                    if(receivedMessage.isValid && (receivedMessage.locationIdx != null))
                     {
                         //invoke the SerialComm class route message function
                         RouteReceivedMessage(receivedMessage);
@@ -344,14 +348,8 @@ namespace _3D_Printer_GCode_Commander
                         //add message to screen ui (assuming invoke required...)
                         SerialComm_ReceivedMsgs_ListBox.Invoke(delegateFunction, receivedMessage.GetByteArray());
 
-                        //since the message is valid, remove bytes in receive queue until the message's sync is found
-                        while (serialReceiveQueue[0] != receivedMessage.baseMessage.Sync)
-                        {
-                            serialReceiveQueue.RemoveAt(0);
-                        }
-
-                        //remove the sync byte so the message in the buffer is no longer valid
-                        serialReceiveQueue.RemoveAt(0);
+                        //since the message is valid, remove numbytes in receive queue and all previous bytes from idx 0
+                        serialReceiveQueue.RemoveRange(0, (int)receivedMessage.locationIdx + receivedMessage.baseMessage.NumBytes);
                     }
                 }
                 await Task.Delay(1000, token); // Pass the token to ensure safe cancellation

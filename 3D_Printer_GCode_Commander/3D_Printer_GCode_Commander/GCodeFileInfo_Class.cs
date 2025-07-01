@@ -12,7 +12,7 @@ namespace _3D_Printer_GCode_Commander
     internal class GCodeFileInfo_Class
     {
         //public variables
-        public readonly MessageSender_e myClassName = MessageSender_e.Gcode_File_Info_Class;
+        public readonly ClassNames_e myClassName = ClassNames_e.Gcode_File_Info_Class;
 
         //private variables
         private static GCodeFileInfo_Class GCodeFileInfo_Instance = null;
