@@ -249,14 +249,18 @@ namespace _3D_Printer_GCode_Commander
             ittMsgRequestQueue.Clear();
         }
 
+        /********************************************************
+         * Update ModuleInfo Panel UI function 
+         * 
+         *******************************************************/
         private void UpdateUI(bool isConnected, byte major, byte minor)
         {
             if(isConnected)
             {
-                //change timer interval to timeout every 5 seconds
-                connStatusCheckTimer.Interval = 5000;
+                //change timer interval to timeout every 10 seconds
+                connStatusCheckTimer.Interval = 10000;
             }
-
+            
             ModuleVersion_Label.Text = isConnected ? major + "." + minor : "-";
             ConnStatus_Label.Text = isConnected ? "CONNECTED" : "NOT CONNECTED";
             ModuleInfo_Panel.BackColor = isConnected ? System.Drawing.SystemColors.Info : System.Drawing.SystemColors.ControlLight;

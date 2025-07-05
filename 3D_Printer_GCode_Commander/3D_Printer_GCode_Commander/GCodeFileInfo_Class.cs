@@ -90,7 +90,11 @@ namespace _3D_Printer_GCode_Commander
             GCFileDate_Label.Text = "";
             GCFileSize_Label.Text = "";
             GCFileLocation = "";
-            GCFileReader.Close();
+            if (GCFileReader != null)
+            {
+                GCFileReader.Close();
+                GCFileReader = null;
+            }
 
             //clear any cmds that were read
             GCodeCmdList.Clear();

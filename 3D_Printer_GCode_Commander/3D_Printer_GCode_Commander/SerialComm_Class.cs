@@ -52,15 +52,19 @@ namespace _3D_Printer_GCode_Commander
         private static SerialComm_Class SerialComm_Instance = null;
         private SerialPort serialPort_Instance = null;
         private List<IntertaskMessage> serialMessageRequestQueue;
-        private List<ModuleMessage> serialTransmitQueue; //tx messages are in byte[] format
-        private List<byte> serialReceiveQueue; //rx messages are in byte format, to be processed into complete messages
         private string portSelect;
         private ParitySelections_e paritySelect;
         private NumStopBitsSelections_e stopBitSelect;
         private BaudRateSelections_e baudRateSelect;
         private NumDataBitsSelections_e dataBitsSelect;
+
+        //async tasks variables
+        private List<ModuleMessage> serialTransmitQueue; //tx messages are in byte[] format
+        private List<byte> serialReceiveQueue; //rx messages are in byte format, to be processed into complete messages
         private CancellationTokenSource cancelTokenSource;
         private CancellationToken cancelToken;
+        private byte currTransactionCnt;
+        private byte recvTransactionCnt;
         
         //private ui element variables
         //serialConfig panel elements
@@ -173,6 +177,8 @@ namespace _3D_Printer_GCode_Commander
                 serialPort_Instance.DataReceived += SerialPort_DataReceived;
 
                 //start async task to send transmit queue messages
+                currTransactionCnt = 0;
+                recvTransactionCnt = 0;
                 cancelTokenSource = new CancellationTokenSource();
                 cancelToken = cancelTokenSource.Token;
                 Task.Run(() => SendSerialAsync(cancelToken));
@@ -194,7 +200,10 @@ namespace _3D_Printer_GCode_Commander
         public void ClosePort()
         {
             if (serialPort_Instance != null)
-            { 
+            {
+                currTransactionCnt = 0;
+                recvTransactionCnt = 0;
+
                 serialPort_Instance.Close();
                 serialPort_Instance.Dispose();
 
@@ -286,7 +295,7 @@ namespace _3D_Printer_GCode_Commander
         {
             byte[] bytes;
             UpdateListBoxDelegate delegateFunction = new UpdateListBoxDelegate(AddMessageToSentListbox);
-
+            
             while (!cancelTokenSource.IsCancellationRequested) //while task isnt cancelled
             {
                 if ((serialPort_Instance != null) && (serialPort_Instance.IsOpen))
@@ -294,12 +303,22 @@ namespace _3D_Printer_GCode_Commander
                     //if serial port is busy writing bytes, then wait....
                     while (serialPort_Instance.BytesToWrite > 0)
                     {
-                        await Task.Delay(300,token); 
+                        await Task.Delay(200,token); 
                     } //waiting for serial port to be ready
 
-                    if (serialTransmitQueue.Count > 0)
+                    //if we didn't receive an acknowledgment yet for the prev msg sent...
+                    while (currTransactionCnt != recvTransactionCnt)
                     {
-                        //send next module message
+                        await Task.Delay(200, token);
+                    }//waiting for response from module before new message is sent
+
+                    //if there are msgs in the Queue 
+                    if (serialTransmitQueue.Count > 0) 
+                    {
+                        //set transaction count with the next message's transactID
+                        currTransactionCnt = serialTransmitQueue[0].baseMessage.TransactID;
+
+                        //send the next module message
                         bytes = serialTransmitQueue[0].GetByteArray();
                         Console.WriteLine(BitConverter.ToString(bytes));
                         serialPort_Instance.Write(bytes, 0, bytes.Length);
@@ -312,7 +331,7 @@ namespace _3D_Printer_GCode_Commander
                     }
                 }
 
-                await Task.Delay(1000,token); // Pass the token to ensure safe cancellation
+                await Task.Delay(200,token); // Pass the token to ensure safe cancellation
             }
         }
 
@@ -342,6 +361,9 @@ namespace _3D_Printer_GCode_Commander
                     //if received message is valid
                     if(receivedMessage.isValid && (receivedMessage.locationIdx != null))
                     {
+                        //set the recieved transaction count to the new count
+                        recvTransactionCnt = receivedMessage.baseMessage.TransactID;
+
                         //invoke the SerialComm class route message function
                         RouteReceivedMessage(receivedMessage);
 
@@ -352,7 +374,7 @@ namespace _3D_Printer_GCode_Commander
                         serialReceiveQueue.RemoveRange(0, (int)receivedMessage.locationIdx + receivedMessage.baseMessage.NumBytes);
                     }
                 }
-                await Task.Delay(1000, token); // Pass the token to ensure safe cancellation
+                await Task.Delay(500, token); // Pass the token to ensure safe cancellation
             }
         }
 
@@ -885,7 +907,7 @@ namespace _3D_Printer_GCode_Commander
 
             //add all elements of the list into the transmit queue
             ModuleMessage moduleMsg;
-            if (commandList != null)
+            if (commandList != null && serialPort_Instance.IsOpen)
             {
                 for (int i = 0; i < commandList.Count; i++)
                 {

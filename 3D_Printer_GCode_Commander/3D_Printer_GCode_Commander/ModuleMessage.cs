@@ -6,10 +6,13 @@ using System.Runtime.Remoting.Activation;
 using System.Security.Permissions;
 using System.Text;
 using System.Threading.Tasks;
-using static _3D_Printer_GCode_Commander.ModuleMessage;
+using System.Runtime.InteropServices;
+using System.Windows.Forms;
+
 
 namespace _3D_Printer_GCode_Commander
 {
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct BaseMessage_s
     {
         public byte Sync;                // 1 byte - Sync identifier
@@ -19,13 +22,19 @@ namespace _3D_Printer_GCode_Commander
         public CommandType_e CmdType;      // 1 byte - 'G' or 'M'
         public ushort CmdID;             // 2 byte int
     }
+    
     public struct VarMessage_s
     {
+        public byte[] DataTypes;
         public float[] Data;             // 4*size bytes long
     }
 
     public class ModuleMessage
     {
+        //public constants
+        public static readonly byte BASE_MSG_SIZE = (byte)Marshal.SizeOf<BaseMessage_s>();
+        public static readonly byte VAR_MSG_PARAMETER_SIZE = sizeof(float)+sizeof(byte);
+
         //public variables
         public BaseMessage_s baseMessage;
         public VarMessage_s varMessage;
@@ -54,7 +63,9 @@ namespace _3D_Printer_GCode_Commander
             baseMessage.TransactID = currTransactID++;
             baseMessage.CmdType = 0;
             baseMessage.CmdID = 0;
-            baseMessage.NumBytes = 9;
+            baseMessage.NumBytes = BASE_MSG_SIZE;
+            varMessage.DataTypes = null;
+            varMessage.Data = null;
             baseMessage.Checksum = CalculateChecksum();
             isValid = true;
             locationIdx = null;
@@ -66,7 +77,9 @@ namespace _3D_Printer_GCode_Commander
             baseMessage.TransactID = currTransactID++;
             baseMessage.CmdType = cmdType;
             baseMessage.CmdID = cmdId;
-            baseMessage.NumBytes = 9;
+            baseMessage.NumBytes = BASE_MSG_SIZE;
+            varMessage.DataTypes = null;
+            varMessage.Data = null;
             baseMessage.Checksum = CalculateChecksum();
             isValid = true;
             locationIdx = null;
@@ -83,20 +96,23 @@ namespace _3D_Printer_GCode_Commander
             int count = 0;
             if ((gCode.Parameters != null) && (gCode.Parameters.Count > 0))
             {
+                varMessage.DataTypes = new byte[gCode.Parameters.Count];
                 varMessage.Data = new float[gCode.Parameters.Count];
                 count = 0;
-                foreach (char key in gCode.Parameters.Keys)
+                foreach (ParameterType_e key in gCode.Parameters.Keys)
                 {
+                    varMessage.DataTypes[count] = (byte)key;
                     varMessage.Data[count] = gCode.Parameters[key];
                     count++;
                 }
             }
             else
             {
-                varMessage.Data = new float[0];
+                varMessage.DataTypes = null;
+                varMessage.Data = null;
             }
 
-            baseMessage.NumBytes = (ushort)(9 + (4 * count));
+            baseMessage.NumBytes = (ushort)(BASE_MSG_SIZE + (VAR_MSG_PARAMETER_SIZE * count));
             baseMessage.Checksum = CalculateChecksum();
 
             isValid = true;
@@ -124,7 +140,7 @@ namespace _3D_Printer_GCode_Commander
             }
 
             //did we see the Sync byte and are there enough bytes to process base message?
-            if ((receivedBytes[numBytesRead] == 0xB7) && ((numBytesRead + 9 ) <= receivedBytes.Length) )
+            if ((receivedBytes[numBytesRead] == 0xB7) && ((numBytesRead + BASE_MSG_SIZE) <= receivedBytes.Length) )
             {
                 //sync found. 
 
@@ -150,12 +166,25 @@ namespace _3D_Printer_GCode_Commander
                 numBytesRead += 2;
 
                 //read (float) data.
-                varMessage.Data = new float[(receivedBytes.Length - numBytesRead)/(sizeof(float))];
+                varMessage.Data = new float[(receivedBytes.Length - numBytesRead)/(VAR_MSG_PARAMETER_SIZE)];
                 int counter = 0;
 
-                for (int i = numBytesRead; i < receivedBytes.Length; i+= sizeof(float))
+                for (int i = numBytesRead; i < receivedBytes.Length; i+= VAR_MSG_PARAMETER_SIZE)
                 {
-                    varMessage.Data[counter] = BitConverter.ToSingle(receivedBytes, i);
+                    if (Enum.IsDefined(typeof(ParameterType_e), (byte)receivedBytes[i]))
+                    {
+                        varMessage.DataTypes[i] = receivedBytes[i];
+                    }
+                    else
+                    {
+                        //unknown parameter
+                        //not a valid string, implement more parameter options?
+                        varMessage.DataTypes[i] = (byte)ParameterType_e.E; //error occurred
+                        MessageBox.Show("Parameter Error", "Found an unidentified character", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        break;
+                    }
+                    
+                    varMessage.Data[counter] = BitConverter.ToSingle(receivedBytes, i+1);
                     counter++;
                 }
 
@@ -200,9 +229,10 @@ namespace _3D_Printer_GCode_Commander
 
             if ((varMessage.Data != null) && (varMessage.Data.Length > 0)) //if data isnt empty, add data
             {
-                foreach (float value in varMessage.Data)
+                for (byte i = 0; i < (baseMessage.NumBytes - 9)/VAR_MSG_PARAMETER_SIZE; i++) 
                 {
-                    buffer.AddRange(BitConverter.GetBytes(value));
+                    buffer.Add((byte)varMessage.DataTypes[i]);
+                    buffer.AddRange(BitConverter.GetBytes(varMessage.Data[i]));
                 }
             }
  
@@ -235,7 +265,7 @@ namespace _3D_Printer_GCode_Commander
             //zero out msg's checksum
             baseMessage.Checksum = 0;
 
-            //typecast msg to a byte array
+            //get the byte array of the full message (base msg + var msg)
             numBytes = baseMessage.NumBytes;
             messageBytes = GetByteArray();
 
