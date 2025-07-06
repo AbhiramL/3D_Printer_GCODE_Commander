@@ -9,13 +9,22 @@ namespace _3D_Printer_GCode_Commander
 {
     public enum CommandType_e : byte
     {
-        G = 0,
-        M = 1,
-        I = 2, //Identify command
-        R = 3, //Generic Response
-        D = 4, //Diagnostic Report
-        C = 5, //in-line Comment
-        E = 0xF  //error
+        // Contextual meta-info
+        END = 0,
+        START = 1,
+        
+        // Standard G/M codes
+        G = 2,
+        M = 3,
+
+        // Report/utility types
+        I = 4, // Identify
+        D = 5, // Diagnostic
+        R = 6, // Generic Response
+        C = 7, // Comment(ignore)
+
+        // Error
+        ERR = 0xF
     };
 
     public enum ParameterType_e : byte
@@ -46,7 +55,7 @@ namespace _3D_Printer_GCode_Commander
         public GCodeCommand()
         {
             gCodeString = null;
-            CmdType = CommandType_e.E;
+            CmdType = CommandType_e.ERR;
             CmdCode = 0;
             Parameters = null;
         }
@@ -88,11 +97,11 @@ namespace _3D_Printer_GCode_Commander
                         CmdType = CommandType_e.M;
                         break;
                     default:
-                        CmdType = CommandType_e.E; //error occurred
+                        CmdType = CommandType_e.ERR; //error occurred
                         break;
                 }
 
-                if (CmdType != CommandType_e.E)
+                if (CmdType != CommandType_e.ERR)
                 {
                     if (int.TryParse(commandParts[0].Substring(1), out int numCode))
                     {
@@ -116,7 +125,7 @@ namespace _3D_Printer_GCode_Commander
                             {
                                 //unknown parameter
                                 //not a valid string, implement more parameter options?
-                                CmdType = CommandType_e.E; //error occurred
+                                CmdType = CommandType_e.ERR; //error occurred
                                 MessageBox.Show("Parameter Error", "Found an unidentified character", MessageBoxButtons.OK, MessageBoxIcon.Error);
                                 break;
                             }
@@ -138,7 +147,7 @@ namespace _3D_Printer_GCode_Commander
             else
             {
                 //not a valid string
-                CmdType = CommandType_e.E; //error occurred
+                CmdType = CommandType_e.ERR; //error occurred
             }
         }
     }

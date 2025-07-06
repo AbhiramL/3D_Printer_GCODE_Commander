@@ -57,6 +57,8 @@ namespace _3D_Printer_GCode_Commander
         private NumStopBitsSelections_e stopBitSelect;
         private BaudRateSelections_e baudRateSelect;
         private NumDataBitsSelections_e dataBitsSelect;
+        int txListBoxCnt;
+        int rxListBoxCnt;
 
         //async tasks variables
         private List<ModuleMessage> serialTransmitQueue; //tx messages are in byte[] format
@@ -156,7 +158,9 @@ namespace _3D_Printer_GCode_Commander
         public bool OpenPort()
         {
             bool retVal = false;
-            
+            txListBoxCnt = 0;
+            rxListBoxCnt = 0;
+
             //bug occurs if selected serial port dissapears after serial port creation
             if (portSelect != "NONE")
             {
@@ -204,19 +208,32 @@ namespace _3D_Printer_GCode_Commander
                 currTransactionCnt = 0;
                 recvTransactionCnt = 0;
 
-                serialPort_Instance.Close();
-                serialPort_Instance.Dispose();
-
                 //end async tasks
                 cancelTokenSource.Cancel();
+
+                if (serialPort_Instance.IsOpen)
+                {
+                    //send end printing identifier to the module
+                    ModuleMessage moduleMsg = new ModuleMessage(CommandType_e.END, 0);
+                    serialPort_Instance.Write(moduleMsg.GetByteArray(), 0, moduleMsg.GetByteArray().Length);
+
+                    //if serial port is busy writing bytes, then wait....
+                    while (serialPort_Instance.BytesToWrite > 0)
+                    {
+                        //waiting for serial port to be ready
+                    }
+                }
+
+                serialPort_Instance.Close();
+                serialPort_Instance.Dispose();
 
                 ClearCommMenus();
 
                 serialTransmitQueue.Clear();
 
                 //send message to moduleInfoClass that module disconnection is occuring
-                Commander_MainApp.RouteIntertaskMessage(ClassNames_e.Module_Info_Class,
-                      new IntertaskMessage(ClassNames_e.Serial_Comm_Class, new GCodeCommand(CommandType_e.E)));
+                ModuleMessage msg = new ModuleMessage(CommandType_e.END, 0);
+                RouteReceivedMessage(msg);
             }
         }
 
@@ -230,26 +247,52 @@ namespace _3D_Printer_GCode_Commander
             //check incomming message validity
             if (incommingMessage.isValid)
             {
-                //check the request queue to see if the incomming message is for another class
-                for(int i = 0; i < serialMessageRequestQueue.Count; i++) 
+                switch(incommingMessage.baseMessage.CmdType)
                 {
-                    //find if a request matched the incomming message transaction id
-                    if (incommingMessage.baseMessage.TransactID == serialMessageRequestQueue[i].moduleMsg.baseMessage.TransactID)
-                    {
-                        //found the owner, add the incomming message and route the request
-                        serialMessageRequestQueue[i].moduleMsg = incommingMessage;
-                        Commander_MainApp.RouteIntertaskMessage(serialMessageRequestQueue[i].messageOwner, serialMessageRequestQueue[i]);
+                    case CommandType_e.END:
+                        {
+                            //destination is ModuleInfo class
+                            IntertaskMessage ittmsg = new IntertaskMessage(ClassNames_e.Serial_Comm_Class, incommingMessage);
+                            Commander_MainApp.RouteIntertaskMessage(ClassNames_e.Module_Info_Class, ittmsg);
+                            break;
+                        }
+                    case CommandType_e.ERR:
+                        {
+                            //destination is Commander class
+                            IntertaskMessage ittmsg = new IntertaskMessage(ClassNames_e.Serial_Comm_Class, incommingMessage);
+                            Commander_MainApp.RouteIntertaskMessage(ClassNames_e.Gcode_Commander_Class, ittmsg);
+                            break;
+                        }
+                    case CommandType_e.C:
+                        {
+                            //destination is ModuleInfo class
+                            IntertaskMessage ittmsg = new IntertaskMessage(ClassNames_e.Serial_Comm_Class, incommingMessage);
+                            Commander_MainApp.RouteIntertaskMessage(ClassNames_e.Module_Info_Class, ittmsg);
+                            break;
+                        }
+                    default:
+                        {
+                            //check the request queue to see if the incomming message is for another class
+                            for (int i = 0; i < serialMessageRequestQueue.Count; i++)
+                            {
+                                //find if a request matched the incomming message transaction id
+                                if (incommingMessage.baseMessage.TransactID == serialMessageRequestQueue[i].moduleMsg.baseMessage.TransactID)
+                                {
+                                    //found the owner, add the incomming message and route the request
+                                    serialMessageRequestQueue[i].moduleMsg = incommingMessage;
+                                    Commander_MainApp.RouteIntertaskMessage(serialMessageRequestQueue[i].messageOwner, serialMessageRequestQueue[i]);
 
-                        //remove request from list
-                        serialMessageRequestQueue.RemoveAt(i);
+                                    //remove request from list
+                                    serialMessageRequestQueue.RemoveAt(i);
 
-                        break;
-                    }
-                }
-
-                //else it is a general message and should be printed out on ui
-            }
-        }
+                                    break;
+                                }
+                            }
+                            break;
+                        }
+                }//end switch
+            }//end if
+        }//end function
 
         /********************************************************
          * Add serial message to transmit queue.
@@ -295,7 +338,10 @@ namespace _3D_Printer_GCode_Commander
         {
             byte[] bytes;
             UpdateListBoxDelegate delegateFunction = new UpdateListBoxDelegate(AddMessageToSentListbox);
-            
+
+            //flush current tx buffer
+            serialPort_Instance.DiscardOutBuffer();
+
             while (!cancelTokenSource.IsCancellationRequested) //while task isnt cancelled
             {
                 if ((serialPort_Instance != null) && (serialPort_Instance.IsOpen))
@@ -346,6 +392,9 @@ namespace _3D_Printer_GCode_Commander
         private async Task ReceiveSerialAsync(CancellationToken token)
         {
             UpdateListBoxDelegate delegateFunction = new UpdateListBoxDelegate(AddMessageToReceiveListbox);
+
+            //flush current rx buffer
+            serialPort_Instance.DiscardInBuffer();
 
             while (!cancelTokenSource.IsCancellationRequested) //while task isnt cancelled
             {
@@ -584,6 +633,9 @@ namespace _3D_Printer_GCode_Commander
 
         private void Build_SerialComm_Panel()
         {
+            txListBoxCnt = 0;
+            rxListBoxCnt = 0;
+
             SerialComm_Panel = new System.Windows.Forms.Panel();
             SerialComm_StartComm_Btn = new System.Windows.Forms.Button();   
             SerialComm_SentMsgs_ListBox = new System.Windows.Forms.ListBox();
@@ -759,7 +811,7 @@ namespace _3D_Printer_GCode_Commander
                 SerialComm_SentMsgs_ListBox.Items.RemoveAt(0);
             }
 
-            SerialComm_SentMsgs_ListBox.Items.Add(BitConverter.ToString(message));
+            SerialComm_SentMsgs_ListBox.Items.Add(txListBoxCnt++ + ". " + BitConverter.ToString(message));
 
             //check if transmit queue is empty, then re-enable the start button
             if((serialTransmitQueue.Count == 0) && (SerialComm_StartComm_Btn.Enabled == false)) 
@@ -806,7 +858,7 @@ namespace _3D_Printer_GCode_Commander
                 SerialComm_ReceivedMsgs_ListBox.Items.RemoveAt(0);
             }
 
-            SerialComm_ReceivedMsgs_ListBox.Items.Add(BitConverter.ToString(message));
+            SerialComm_ReceivedMsgs_ListBox.Items.Add(rxListBoxCnt++ + ". " + BitConverter.ToString(message));
         }
 
         private void ClearCommMenus()
@@ -905,15 +957,25 @@ namespace _3D_Printer_GCode_Commander
             //get hold of the commander, ask for the gcode command list
             List<GCodeCommand> commandList = Commander_MainApp.GetGCodeCommandList();
 
-            //add all elements of the list into the transmit queue
             ModuleMessage moduleMsg;
+
+            //add all elements of the list into the transmit queue
             if (commandList != null && serialPort_Instance.IsOpen)
             {
+                //add start printing identifier to the tx queue to send to the module
+                moduleMsg = new ModuleMessage(CommandType_e.START, 0);
+                serialTransmitQueue.Add(moduleMsg);
+
+                //add command list elements to the tx queue
                 for (int i = 0; i < commandList.Count; i++)
                 {
                     moduleMsg = new ModuleMessage(commandList[i]);
                     serialTransmitQueue.Add(moduleMsg);
                 }
+
+                //add end printing identifier to the tx queue
+                moduleMsg = new ModuleMessage(CommandType_e.END, 0);
+                serialTransmitQueue.Add(moduleMsg);
 
                 //grey out the start button
                 SerialComm_StartComm_Btn.Enabled = false;

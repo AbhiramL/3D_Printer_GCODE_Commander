@@ -33,11 +33,14 @@ namespace _3D_Printer_GCode_Commander
     {
         //public constants
         public static readonly byte BASE_MSG_SIZE = (byte)Marshal.SizeOf<BaseMessage_s>();
-        public static readonly byte VAR_MSG_PARAMETER_SIZE = sizeof(float)+sizeof(byte);
+        public static readonly byte VAR_MSG_PARAMETER_SIZE = (byte)(sizeof(float) + sizeof(byte));
+        public static readonly byte GENERIC_RESPONSE_SIZE = (byte)(BASE_MSG_SIZE + sizeof(byte));
+        public static readonly byte DIAGNOSTIC_RESPONSE_SIZE = (byte)((4 * VAR_MSG_PARAMETER_SIZE) + BASE_MSG_SIZE);
 
         //public variables
         public BaseMessage_s baseMessage;
         public VarMessage_s varMessage;
+        public byte genMsg_status;
 
         //private variables
         private readonly GCodeCommand gCodeCommand;
@@ -143,7 +146,6 @@ namespace _3D_Printer_GCode_Commander
             if ((receivedBytes[numBytesRead] == 0xB7) && ((numBytesRead + BASE_MSG_SIZE) <= receivedBytes.Length) )
             {
                 //sync found. 
-
                 //read sync byte
                 baseMessage.Sync = receivedBytes[numBytesRead++];
 
@@ -165,27 +167,40 @@ namespace _3D_Printer_GCode_Commander
                 baseMessage.CmdID = BitConverter.ToUInt16(receivedBytes, numBytesRead);
                 numBytesRead += 2;
 
-                //read (float) data.
-                varMessage.Data = new float[(receivedBytes.Length - numBytesRead)/(VAR_MSG_PARAMETER_SIZE)];
-                int counter = 0;
+                //init varMessage arrays
+                byte numParameters = (byte)((baseMessage.NumBytes - BASE_MSG_SIZE) / (VAR_MSG_PARAMETER_SIZE));
+                varMessage.Data = new float[numParameters];
+                varMessage.DataTypes = new byte[numParameters];
 
-                for (int i = numBytesRead; i < receivedBytes.Length; i+= VAR_MSG_PARAMETER_SIZE)
+                //check if this message is a generic response, or module message
+                //AND check if there are enough bytes to construct a full response
+                if ((baseMessage.CmdType == CommandType_e.R) && ((numBytesRead + (GENERIC_RESPONSE_SIZE - BASE_MSG_SIZE)) <= receivedBytes.Length))
                 {
-                    if (Enum.IsDefined(typeof(ParameterType_e), (byte)receivedBytes[i]))
+                    //generic response received, set status variable
+                    genMsg_status = receivedBytes[numBytesRead++];
+                }
+                else if ((numBytesRead + (baseMessage.NumBytes - BASE_MSG_SIZE)) <= receivedBytes.Length)
+                {
+                    //default module message or diagnostics response was sent by the module
+                    //read available variable data.
+                    for (int i = 0; i < numParameters; i++)
                     {
-                        varMessage.DataTypes[i] = receivedBytes[i];
+                        if (Enum.IsDefined(typeof(ParameterType_e), (byte)receivedBytes[i]))
+                        {
+                            varMessage.DataTypes[i] = receivedBytes[numBytesRead];
+                            numBytesRead++;
+                        }
+                        else
+                        {
+                            //unknown parameter or not a valid string, implement more parameter options?
+                            varMessage.DataTypes[i] = (byte)ParameterType_e.E; //error occurred
+                            MessageBox.Show("Parameter Error", "Found an unidentified character", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            break;
+                        }
+
+                        varMessage.Data[i] = BitConverter.ToSingle(receivedBytes, numBytesRead);
+                        numBytesRead += sizeof(float);
                     }
-                    else
-                    {
-                        //unknown parameter
-                        //not a valid string, implement more parameter options?
-                        varMessage.DataTypes[i] = (byte)ParameterType_e.E; //error occurred
-                        MessageBox.Show("Parameter Error", "Found an unidentified character", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        break;
-                    }
-                    
-                    varMessage.Data[counter] = BitConverter.ToSingle(receivedBytes, i+1);
-                    counter++;
                 }
 
                 //verify Checksum
@@ -227,7 +242,7 @@ namespace _3D_Printer_GCode_Commander
             buffer.Add((byte)baseMessage.CmdType);
             buffer.AddRange(BitConverter.GetBytes(baseMessage.CmdID)); 
 
-            if ((varMessage.Data != null) && (varMessage.Data.Length > 0)) //if data isnt empty, add data
+            if ((varMessage.Data != null) && (varMessage.Data.Length > 0)) //if data isnt empty, add data to the buffer
             {
                 for (byte i = 0; i < (baseMessage.NumBytes - 9)/VAR_MSG_PARAMETER_SIZE; i++) 
                 {

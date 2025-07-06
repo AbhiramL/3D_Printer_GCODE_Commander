@@ -121,7 +121,7 @@ namespace _3D_Printer_GCode_Commander
                 GCodeCommand gCodeCommand = new GCodeCommand(line);
 
                 //if the GCode command is not an error,
-                if(gCodeCommand.CmdType == CommandType_e.E) 
+                if(gCodeCommand.CmdType == CommandType_e.ERR) 
                 {
                     //not GCODE
                     GCodeCmdList.Clear();

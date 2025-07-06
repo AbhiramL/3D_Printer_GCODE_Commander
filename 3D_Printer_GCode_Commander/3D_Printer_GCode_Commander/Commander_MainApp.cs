@@ -55,12 +55,6 @@ namespace _3D_Printer_GCode_Commander
         }
         public static void RouteIntertaskMessage(ClassNames_e Destination, IntertaskMessage request)
         {
-            //need to check message type: and switch
-            //
-            //
-            //
-            //
-            
             //call the appropriate class functions
             switch (Destination)
             {
