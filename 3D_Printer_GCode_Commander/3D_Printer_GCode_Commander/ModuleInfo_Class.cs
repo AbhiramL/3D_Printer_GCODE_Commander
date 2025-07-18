@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Timers;
 using System.Windows.Forms;
 
 namespace _3D_Printer_GCode_Commander
@@ -13,12 +14,12 @@ namespace _3D_Printer_GCode_Commander
     internal class ModuleInfo_Class
     {
         //public variables
-        public readonly MessageSender_e myClassName = MessageSender_e.Module_Info_Class;
+        public readonly ClassNames_e myClassName = ClassNames_e.Module_Info_Class;
 
         //private class variables
         private static ModuleInfo_Class ModuleInfo_instance = null;
-        //private DateTime requestSendTime, ackReceivedTime;
-        
+        private List<IntertaskMessage> ittMsgRequestQueue;
+
         //private ui element variables
         private System.Windows.Forms.Panel ModuleInfo_Panel;
         private System.Windows.Forms.TextBox ModuleVersion_TextBox;
@@ -27,7 +28,8 @@ namespace _3D_Printer_GCode_Commander
         private System.Windows.Forms.Label ModuleVersion_Label;
         private System.Windows.Forms.Label ConnStatus_Label;
         private System.Windows.Forms.Button ConnectToModule_Btn;
-        
+
+
         /********************************************************
          * Private constructors
          *******************************************************/
@@ -36,8 +38,7 @@ namespace _3D_Printer_GCode_Commander
             //Build Module Info panel and buttons.
             Build_ModuleInfo_Panel();
 
-            //Acquire Serial Comm manager instance.
-            //SerialComm_Mgr = SerialComm_Class.GetInstance();
+            ittMsgRequestQueue = new List<IntertaskMessage>();
         }
 
         /********************************************************
@@ -56,18 +57,21 @@ namespace _3D_Printer_GCode_Commander
 
         /********************************************************
          * Connect to module function
+         * Sends Identify cmd to module and starts a timer
          * 
-         * returns true if connection is made
          *******************************************************/
         public void ConnectToModule()
         {
-            GCodeCommand gCodeCommand = new GCodeCommand(CommandType_e.I);
+            GCodeCommand gCodeCommand = new GCodeCommand(CommandType_e.ID);
 
             //special case 
             gCodeCommand.gCodeString = "Module Identify Command";
+
+            //create a intertask message, with moduleInfo as the owner
             IntertaskMessage serialMessage = new IntertaskMessage(myClassName, gCodeCommand);
             
-            Commander_MainApp.RouteIntertaskMessage(MessageSender_e.Serial_Comm_Class, serialMessage);
+            //route to serialComm_class
+            Commander_MainApp.RouteIntertaskMessage(serialMessage);
         }
 
         /********************************************************
@@ -90,9 +94,9 @@ namespace _3D_Printer_GCode_Commander
             //
             // Panel init
             //
-            ModuleInfo_Panel.BackColor = System.Drawing.SystemColors.ControlLight; 
+            ModuleInfo_Panel.BackColor = System.Drawing.SystemColors.ControlLight;
             ModuleInfo_Panel.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            ModuleInfo_Panel.Location = new System.Drawing.Point(340, 3);
+            ModuleInfo_Panel.Location = new System.Drawing.Point(308, 3);
             ModuleInfo_Panel.Name = "ModuleStatus_Panel";
             ModuleInfo_Panel.Size = new System.Drawing.Size(328, 176);
             ModuleInfo_Panel.TabIndex = 6;
@@ -180,21 +184,28 @@ namespace _3D_Printer_GCode_Commander
         }
 
         /********************************************************
-         * Serial Request Handler
-         * 
+         * Add intertask message to ModuleInfo class queue function 
          * 
          *******************************************************/
-        public void ModuleConnectCmdAnswered(IntertaskMessage receivedMsg)
+        public void AddIntertaskMsgToQueue(IntertaskMessage msg)
         {
-            if(receivedMsg.moduleMsg.baseMessage.CmdType == CommandType_e.I)
+            ittMsgRequestQueue.Add(msg);
+        }
+
+        /********************************************************
+         * Update ModuleInfo Panel UI function 
+         * 
+         *******************************************************/
+        private void UpdatePanelUI(bool isConnected, byte major, byte minor, byte rev)
+        {
+            //update version # only if a valid major number appeared
+            if (major != 0) 
             {
-                //if success, then update panel
-                ModuleVersion_Label.Text = "";
-                ModuleVersion_TextBox.Text = "Connected";
-                ModuleInfo_Panel.BackColor = System.Drawing.SystemColors.Info;
-                ConnectToModule_Btn.Enabled = false;
-                ConnectToModule_Btn.BackColor = System.Drawing.Color.Gray;
+                ModuleVersion_Label.Text = isConnected ? (major + "." + minor + "." + rev) : "-";
             }
+
+            ConnStatus_Label.Text = isConnected ? "CONNECTED" : "NOT CONNECTED";
+            ModuleInfo_Panel.BackColor = isConnected ? System.Drawing.SystemColors.Info : System.Drawing.SystemColors.ControlLight;
         }
 
         /********************************************************
