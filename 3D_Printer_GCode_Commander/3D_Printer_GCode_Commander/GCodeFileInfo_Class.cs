@@ -128,7 +128,7 @@ namespace _3D_Printer_GCode_Commander
                     isValid = false;
                     break;
                 }
-                else if(gCodeCommand.CmdType != CommandType_e.C) //and is not a comment...
+                else if(gCodeCommand.CmdType != CommandType_e.NULL) //and is not a comment...
                 {
                     //add cmd to the list
                     GCodeCmdList.Add(gCodeCommand);
@@ -174,21 +174,21 @@ namespace _3D_Printer_GCode_Commander
             GCFileUnload_Btn = new System.Windows.Forms.Button();
             GCFileValidity_Checkbox = new System.Windows.Forms.CheckBox();
             GCodeFileInfo_Panel.SuspendLayout();
-
+            //
             // Initialize elements
             // 
             // GCFileInfo_Panel
             // 
             GCodeFileInfo_Panel.BackColor = System.Drawing.SystemColors.ControlLight;
             GCodeFileInfo_Panel.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            GCodeFileInfo_Panel.Location = new System.Drawing.Point(340, 185);
+            GCodeFileInfo_Panel.Location = new System.Drawing.Point(3, 285);
             GCodeFileInfo_Panel.Name = "GCodeFileInfo_Panel";
-            GCodeFileInfo_Panel.Size = new System.Drawing.Size(328, 323);
+            GCodeFileInfo_Panel.Size = new System.Drawing.Size(300, 220);
             GCodeFileInfo_Panel.TabIndex = 4;
             // 
             // LoadFile_Btn
             // 
-            GCFileLoad_Btn.Location = new System.Drawing.Point(35, 257);
+            GCFileLoad_Btn.Location = new System.Drawing.Point(8, 180);
             GCFileLoad_Btn.Name = "GCFileLoad_Btn";
             GCFileLoad_Btn.Size = new System.Drawing.Size(122, 29);
             GCFileLoad_Btn.TabIndex = 2;
@@ -199,9 +199,9 @@ namespace _3D_Printer_GCode_Commander
             // 
             // UnloadFile_Btn
             // 
-            GCFileUnload_Btn.Location = new System.Drawing.Point(167, 257);
+            GCFileUnload_Btn.Location = new System.Drawing.Point(150, 180);
             GCFileUnload_Btn.Name = "GCFileUnload_Btn";
-            GCFileUnload_Btn.Size = new System.Drawing.Size(122, 29);
+            GCFileUnload_Btn.Size = new System.Drawing.Size(132, 29);
             GCFileUnload_Btn.TabIndex = 2;
             GCFileUnload_Btn.Text = "Unload Gcode File";
             GCFileUnload_Btn.UseVisualStyleBackColor = true;
@@ -218,7 +218,7 @@ namespace _3D_Printer_GCode_Commander
             GCodeFileInfoPanelHeader_TextBox.Location = new System.Drawing.Point(0, 3);
             GCodeFileInfoPanelHeader_TextBox.Multiline = true;
             GCodeFileInfoPanelHeader_TextBox.Name = "GCodeFileInfoPanelHeader_TextBox";
-            GCodeFileInfoPanelHeader_TextBox.Size = new System.Drawing.Size(327, 28);
+            GCodeFileInfoPanelHeader_TextBox.Size = new System.Drawing.Size(300, 28);
             GCodeFileInfoPanelHeader_TextBox.TabIndex = 1;
             GCodeFileInfoPanelHeader_TextBox.Text = "GCODE FILE INFORMATION";
             GCodeFileInfoPanelHeader_TextBox.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
@@ -238,7 +238,7 @@ namespace _3D_Printer_GCode_Commander
             // 
             GCodeFileSizeHeader_TextBox.ReadOnly = true;
             GCodeFileSizeHeader_TextBox.BackColor = System.Drawing.SystemColors.ButtonHighlight;
-            GCodeFileSizeHeader_TextBox.Location = new System.Drawing.Point(12, 130);
+            GCodeFileSizeHeader_TextBox.Location = new System.Drawing.Point(12, 100);
             GCodeFileSizeHeader_TextBox.Name = "GCodeFileSizeHeader_TextBox";
             GCodeFileSizeHeader_TextBox.Size = new System.Drawing.Size(87, 22);
             GCodeFileSizeHeader_TextBox.TabIndex = 7;
@@ -249,7 +249,7 @@ namespace _3D_Printer_GCode_Commander
             // 
             GCodeFileDateHeader_TextBox.ReadOnly = true;
             GCodeFileDateHeader_TextBox.BackColor = System.Drawing.SystemColors.ButtonHighlight;
-            GCodeFileDateHeader_TextBox.Location = new System.Drawing.Point(12, 180);
+            GCodeFileDateHeader_TextBox.Location = new System.Drawing.Point(12, 130);
             GCodeFileDateHeader_TextBox.Name = "GCodeFileDateHeader_TextBox";
             GCodeFileDateHeader_TextBox.Size = new System.Drawing.Size(87, 22);
             GCodeFileDateHeader_TextBox.TabIndex = 8;
@@ -259,7 +259,7 @@ namespace _3D_Printer_GCode_Commander
             // Label to hold file name
             // 
             GCFileName_Label.AutoSize = true;
-            GCFileName_Label.MaximumSize = new System.Drawing.Size(200, 80); //wraps text if too long
+            GCFileName_Label.MaximumSize = new System.Drawing.Size(170, 80); //wraps text if too long
             GCFileName_Label.BackColor = System.Drawing.SystemColors.ButtonHighlight;
             GCFileName_Label.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
             GCFileName_Label.Location = new System.Drawing.Point(105, 50);
@@ -273,7 +273,7 @@ namespace _3D_Printer_GCode_Commander
             GCFileSize_Label.AutoSize = true;
             GCFileSize_Label.BackColor = System.Drawing.SystemColors.ButtonHighlight;
             GCFileSize_Label.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
-            GCFileSize_Label.Location = new System.Drawing.Point(105, 130);
+            GCFileSize_Label.Location = new System.Drawing.Point(105, 100);
             GCFileSize_Label.Name = "GCFileSize_Label";
             GCFileSize_Label.Size = new System.Drawing.Size(0, 16);
             GCFileSize_Label.TabIndex = 10;
@@ -283,7 +283,7 @@ namespace _3D_Printer_GCode_Commander
             GCFileDate_Label.AutoSize = true;
             GCFileDate_Label.BackColor = System.Drawing.SystemColors.ButtonHighlight;
             GCFileDate_Label.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
-            GCFileDate_Label.Location = new System.Drawing.Point(105, 180);
+            GCFileDate_Label.Location = new System.Drawing.Point(105, 130);
             GCFileDate_Label.Name = "GCFileDate_Label";
             GCFileDate_Label.Size = new System.Drawing.Size(2, 18);
             GCFileDate_Label.TabIndex = 11;
@@ -292,7 +292,7 @@ namespace _3D_Printer_GCode_Commander
             //
             GCFileValidity_Checkbox.Text = "File is Valid:";
             GCFileValidity_Checkbox.AutoCheck = false;
-            GCFileValidity_Checkbox.Location = new System.Drawing.Point(15, 90);
+            GCFileValidity_Checkbox.Location = new System.Drawing.Point(15, 160);
             GCFileValidity_Checkbox.Name = "GCFileValidity_Checkbox";
             GCFileValidity_Checkbox.AutoSize = true;
             GCFileValidity_Checkbox.Visible = false;

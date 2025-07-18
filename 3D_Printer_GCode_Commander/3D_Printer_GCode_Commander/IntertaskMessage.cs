@@ -10,6 +10,7 @@ namespace _3D_Printer_GCode_Commander
     {
         Gcode_Commander_Class,
         Module_Info_Class,
+        Module_Config_Class,
         Diagnostic_Class,
         Gcode_File_Info_Class,
         Serial_Comm_Class

@@ -9,22 +9,27 @@ namespace _3D_Printer_GCode_Commander
 {
     public enum CommandType_e : byte
     {
-        // Contextual meta-info
-        END = 0,
-        START = 1,
+        //Basic Module Commands
+        BEGIN,      //Used to indicate to the module to begin the printing process
+        END,        //Terminate the printing process
+        PAUSE,      //Pause the printing process
+        DX,         //If sent to the module, it is a Diagnosis Command. If sent to the Commander, it is a Diagnosis Response.
+        PD,         //Power Down
+
+        //Identify/Config
+        ID,         //Dispatch contains a Identify command, Response contains a Identify response message.
+        MCF,        //Dispatch contains a Module config command, with parameters. Response contains status byte
         
-        // Standard G/M codes
-        G = 2,
-        M = 3,
-
-        // Report/utility types
-        I = 4, // Identify
-        D = 5, // Diagnostic
-        R = 6, // Generic Response
-        C = 7, // Comment(ignore)
-
-        // Error
-        ERR = 0xF
+        //Print Commands
+        G_CMD,      //Dispatch contains a G-Type GCODE command
+        M_CMD,      //Dispatch contains a M-Type GCODE command
+    
+        //Message Types
+        GEN_RSP,    //Response is a Generic Response, carrying only the base message
+        STS_RSP,    //Response is a Status Module Response carrying a status byte
+        DYN_RSP,    //Response is a Dynamic Module Response carrying parameters
+        ERR,        //Used in both Dispatches and Responses to indicate a critical error.
+        NULL        //Empty command  
     };
 
     public enum ParameterType_e : byte
@@ -40,7 +45,15 @@ namespace _3D_Printer_GCode_Commander
         J = (byte)'J', //arc offset y
         R = (byte)'R', //arc offset z
         H = (byte)'H', //heater setting
-        L = (byte)'L'  //level setting
+        L = (byte)'L', //level setting
+        
+        //Special Parameters
+        FIRMWARE = (byte)'f', //firmware field identifier
+        CAPABLES = (byte)'c', //printer capabilites field identifier
+        NEUT_POS = (byte)'n', //printer neutral position field identifier
+        TOD = (byte)'t',      //time of day field identifier
+
+        //Error Codes/status codes
     }
     public class GCodeCommand
     {
@@ -91,10 +104,10 @@ namespace _3D_Printer_GCode_Commander
                 switch (commandParts[0].Substring(0, 1)) //get first char
                 {
                     case "G":
-                        CmdType = CommandType_e.G;
+                        CmdType = CommandType_e.G_CMD;
                         break;
                     case "M":
-                        CmdType = CommandType_e.M;
+                        CmdType = CommandType_e.M_CMD;
                         break;
                     default:
                         CmdType = CommandType_e.ERR; //error occurred
@@ -142,7 +155,7 @@ namespace _3D_Printer_GCode_Commander
             }
             else if(string.IsNullOrWhiteSpace(cmdStr))
             {
-                CmdType = CommandType_e.C; //comment found
+                CmdType = CommandType_e.NULL; //comment found
             }
             else
             {

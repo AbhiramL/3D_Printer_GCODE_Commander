@@ -55,6 +55,7 @@
     <Compile Include="GCodeCommand.cs" />
     <Compile Include="GCodeFileInfo_Class.cs" />
     <Compile Include="IntertaskMessage.cs" />
+    <Compile Include="ModuleConfig_Class.cs" />
     <Compile Include="ModuleInfo_Class.cs" />
     <Compile Include="ModuleMessage.cs" />
     <Compile Include="Program.cs" />

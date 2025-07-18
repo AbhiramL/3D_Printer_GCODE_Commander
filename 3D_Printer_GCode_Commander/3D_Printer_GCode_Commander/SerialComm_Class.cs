@@ -51,7 +51,6 @@ namespace _3D_Printer_GCode_Commander
         //private variables
         private static SerialComm_Class SerialComm_Instance = null;
         private SerialPort serialPort_Instance = null;
-        private List<IntertaskMessage> serialMessageRequestQueue;
         private string portSelect;
         private ParitySelections_e paritySelect;
         private NumStopBitsSelections_e stopBitSelect;
@@ -61,7 +60,8 @@ namespace _3D_Printer_GCode_Commander
         int rxListBoxCnt;
 
         //async tasks variables
-        private List<ModuleMessage> serialTransmitQueue; //tx messages are in byte[] format
+        private readonly SemaphoreSlim list_access_semaphore = new SemaphoreSlim(1, 1);
+        private List<ModuleMessage> serialTransmitQueue; //tx messages are in module messages
         private List<byte> serialReceiveQueue; //rx messages are in byte format, to be processed into complete messages
         private CancellationTokenSource cancelTokenSource;
         private CancellationToken cancelToken;
@@ -102,8 +102,7 @@ namespace _3D_Printer_GCode_Commander
         {
             serialTransmitQueue = new List<ModuleMessage>();
             serialReceiveQueue = new List<byte>();
-            serialMessageRequestQueue = new List<IntertaskMessage>();
-
+            
             Build_SerialComm_Panel();
             Build_SerialConfig_Panel();
 
@@ -185,8 +184,8 @@ namespace _3D_Printer_GCode_Commander
                 recvTransactionCnt = 0;
                 cancelTokenSource = new CancellationTokenSource();
                 cancelToken = cancelTokenSource.Token;
-                Task.Run(() => SendSerialAsync(cancelToken));
-                Task.Run(() => ReceiveSerialAsync(cancelToken));
+                Task.Run(() => SendSerial_Async(cancelToken));
+                Task.Run(() => ReceiveSerial_Async(cancelToken));
 
 
                 //reset transaction id
@@ -211,29 +210,11 @@ namespace _3D_Printer_GCode_Commander
                 //end async tasks
                 cancelTokenSource.Cancel();
 
-                if (serialPort_Instance.IsOpen)
-                {
-                    //send end printing identifier to the module
-                    ModuleMessage moduleMsg = new ModuleMessage(CommandType_e.END, 0);
-                    serialPort_Instance.Write(moduleMsg.GetByteArray(), 0, moduleMsg.GetByteArray().Length);
-
-                    //if serial port is busy writing bytes, then wait....
-                    while (serialPort_Instance.BytesToWrite > 0)
-                    {
-                        //waiting for serial port to be ready
-                    }
-                }
-
+                serialTransmitQueue.Clear();
                 serialPort_Instance.Close();
                 serialPort_Instance.Dispose();
 
                 ClearCommMenus();
-
-                serialTransmitQueue.Clear();
-
-                //send message to moduleInfoClass that module disconnection is occuring
-                ModuleMessage msg = new ModuleMessage(CommandType_e.END, 0);
-                RouteReceivedMessage(msg);
             }
         }
 
@@ -242,55 +223,17 @@ namespace _3D_Printer_GCode_Commander
          * Called from async task
          * routes valid message to message request owner
          *******************************************************/
-        private void RouteReceivedMessage(ModuleMessage incommingMessage)
+        private void RouteModuleMessage(ModuleMessage incommingMessage)
         {
             //check incomming message validity
             if (incommingMessage.isValid)
             {
-                switch(incommingMessage.baseMessage.CmdType)
-                {
-                    case CommandType_e.END:
-                        {
-                            //destination is ModuleInfo class
-                            IntertaskMessage ittmsg = new IntertaskMessage(ClassNames_e.Serial_Comm_Class, incommingMessage);
-                            Commander_MainApp.RouteIntertaskMessage(ClassNames_e.Module_Info_Class, ittmsg);
-                            break;
-                        }
-                    case CommandType_e.ERR:
-                        {
-                            //destination is Commander class
-                            IntertaskMessage ittmsg = new IntertaskMessage(ClassNames_e.Serial_Comm_Class, incommingMessage);
-                            Commander_MainApp.RouteIntertaskMessage(ClassNames_e.Gcode_Commander_Class, ittmsg);
-                            break;
-                        }
-                    case CommandType_e.C:
-                        {
-                            //destination is ModuleInfo class
-                            IntertaskMessage ittmsg = new IntertaskMessage(ClassNames_e.Serial_Comm_Class, incommingMessage);
-                            Commander_MainApp.RouteIntertaskMessage(ClassNames_e.Module_Info_Class, ittmsg);
-                            break;
-                        }
-                    default:
-                        {
-                            //check the request queue to see if the incomming message is for another class
-                            for (int i = 0; i < serialMessageRequestQueue.Count; i++)
-                            {
-                                //find if a request matched the incomming message transaction id
-                                if (incommingMessage.baseMessage.TransactID == serialMessageRequestQueue[i].moduleMsg.baseMessage.TransactID)
-                                {
-                                    //found the owner, add the incomming message and route the request
-                                    serialMessageRequestQueue[i].moduleMsg = incommingMessage;
-                                    Commander_MainApp.RouteIntertaskMessage(serialMessageRequestQueue[i].messageOwner, serialMessageRequestQueue[i]);
+                IntertaskMessage ittmsg;
 
-                                    //remove request from list
-                                    serialMessageRequestQueue.RemoveAt(i);
-
-                                    break;
-                                }
-                            }
-                            break;
-                        }
-                }//end switch
+                //destination is ModuleInfo class
+                ittmsg = new IntertaskMessage(myClassName, incommingMessage);
+                Commander_MainApp.RouteIntertaskMessage(ittmsg);
+                                                    
             }//end if
         }//end function
 
@@ -312,11 +255,18 @@ namespace _3D_Printer_GCode_Commander
                     //debugging
                     //_uiControl.Invoke(new Action(() => AddSentMessage(s_message + $",\t{DateTime.Now:HH:mm:ss}")));
 
-                    //add new request to the request queue
-                    serialMessageRequestQueue.Add(serialCommMessage);
-
-                    //add module message to the transmit queue to send out
-                    serialTransmitQueue.Add(serialCommMessage.moduleMsg);
+                    //get access semaphore
+                    list_access_semaphore.Wait();
+                    try
+                    {
+                        //add module message to the transmit queue to send out
+                        serialTransmitQueue.Insert(0, serialCommMessage.moduleMsg);
+                    }
+                    finally
+                    {
+                        //release semaphore
+                        list_access_semaphore.Release();
+                    }
                 }
                 else
                 {
@@ -334,7 +284,7 @@ namespace _3D_Printer_GCode_Commander
          * runs on a seperate thread than the commander main app
          * executes automatically, parallel to the main thread
          *******************************************************/
-        private async Task SendSerialAsync(CancellationToken token)
+        private async Task SendSerial_Async(CancellationToken token)
         {
             byte[] bytes;
             UpdateListBoxDelegate delegateFunction = new UpdateListBoxDelegate(AddMessageToSentListbox);
@@ -361,17 +311,27 @@ namespace _3D_Printer_GCode_Commander
                     //if there are msgs in the Queue 
                     if (serialTransmitQueue.Count > 0) 
                     {
-                        //set transaction count with the next message's transactID
-                        currTransactionCnt = serialTransmitQueue[0].baseMessage.TransactID;
+                        //get access semaphore to read queue
+                        await list_access_semaphore.WaitAsync(token);
+                        try 
+                        {
+                            //set curr transaction count with the next message's transactID
+                            currTransactionCnt = serialTransmitQueue[0].baseMessage.TransactID;
 
-                        //send the next module message
-                        bytes = serialTransmitQueue[0].GetByteArray();
-                        Console.WriteLine(BitConverter.ToString(bytes));
-                        serialPort_Instance.Write(bytes, 0, bytes.Length);
-
-                        //dequeue 
-                        serialTransmitQueue.RemoveAt(0);
-
+                            //send the next module message
+                            bytes = serialTransmitQueue[0].GetByteArray();
+                            Console.WriteLine(BitConverter.ToString(bytes));
+                            serialPort_Instance.Write(bytes, 0, bytes.Length);
+                            
+                            //dequeue 
+                            serialTransmitQueue.RemoveAt(0);
+                        }
+                        finally
+                        {
+                            //release semaphore
+                            list_access_semaphore.Release();
+                        }
+                        
                         //add message to screen ui
                         SerialComm_SentMsgs_ListBox.Invoke(delegateFunction, bytes);
                     }
@@ -389,7 +349,7 @@ namespace _3D_Printer_GCode_Commander
          * runs on a seperate thread than the commander main app
          * executes automatically, parallel to the main thread
          *******************************************************/
-        private async Task ReceiveSerialAsync(CancellationToken token)
+        private async Task ReceiveSerial_Async(CancellationToken token)
         {
             UpdateListBoxDelegate delegateFunction = new UpdateListBoxDelegate(AddMessageToReceiveListbox);
 
@@ -414,7 +374,7 @@ namespace _3D_Printer_GCode_Commander
                         recvTransactionCnt = receivedMessage.baseMessage.TransactID;
 
                         //invoke the SerialComm class route message function
-                        RouteReceivedMessage(receivedMessage);
+                        RouteModuleMessage(receivedMessage);
 
                         //add message to screen ui (assuming invoke required...)
                         SerialComm_ReceivedMsgs_ListBox.Invoke(delegateFunction, receivedMessage.GetByteArray());
@@ -452,108 +412,16 @@ namespace _3D_Printer_GCode_Commander
             SerialConfig_DataBits_TextBox = new System.Windows.Forms.TextBox(); 
             SerialConfig_StopBits_TextBox = new System.Windows.Forms.TextBox(); 
             SerialConfig_Header_TextBox = new System.Windows.Forms.TextBox(); 
-
             // 
             // SerComSettings_Panel
             // 
             SerialConfig_Panel.BackColor = System.Drawing.SystemColors.ControlLight;
             SerialConfig_Panel.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            SerialConfig_Panel.Location = new System.Drawing.Point(5, 3);
+            SerialConfig_Panel.Location = new System.Drawing.Point(3, 3);
             SerialConfig_Panel.Name = "SerComSettings_Panel";
-            SerialConfig_Panel.Size = new System.Drawing.Size(328, 505);
+            SerialConfig_Panel.Size = new System.Drawing.Size(300, 278);
             SerialConfig_Panel.TabIndex = 7;
             SerialConfig_Panel.SuspendLayout();
-            // 
-            // SerialConfig_FindPorts_Btn
-            // 
-            SerialConfig_FindPorts_Btn.BackColor = System.Drawing.SystemColors.Info;
-            SerialConfig_FindPorts_Btn.Location = new System.Drawing.Point(78, 50);
-            SerialConfig_FindPorts_Btn.Name = "SerialConfig_FindPorts_Btn";
-            SerialConfig_FindPorts_Btn.Size = new System.Drawing.Size(169, 26);
-            SerialConfig_FindPorts_Btn.TabIndex = 20;
-            SerialConfig_FindPorts_Btn.Text = "FIND NEW PORTS";
-            SerialConfig_FindPorts_Btn.UseVisualStyleBackColor = false;
-            SerialConfig_FindPorts_Btn.Click += new System.EventHandler(this.SerialConfig_FindPorts_Btn_Click_Handler);
-            // 
-            // SerialConfig_ClosePort_Btn
-            // 
-            SerialConfig_ClosePort_Btn.BackColor = System.Drawing.SystemColors.ActiveCaption;
-            SerialConfig_ClosePort_Btn.ForeColor = System.Drawing.SystemColors.ActiveCaptionText;
-            SerialConfig_ClosePort_Btn.Location = new System.Drawing.Point(180, 440);
-            SerialConfig_ClosePort_Btn.Name = "SerialConfig_ClosePort_Btn";
-            SerialConfig_ClosePort_Btn.Size = new System.Drawing.Size(83, 29);
-            SerialConfig_ClosePort_Btn.TabIndex = 23;
-            SerialConfig_ClosePort_Btn.Text = "CLOSE";
-            SerialConfig_ClosePort_Btn.UseVisualStyleBackColor = false;
-            SerialConfig_ClosePort_Btn.Click += new System.EventHandler(this.SerialConfig_ClosePort_Btn_Click_Handler);
-            // 
-            // SerialConfig_OpenPort_Btn
-            // 
-            SerialConfig_OpenPort_Btn.BackColor = System.Drawing.SystemColors.GradientInactiveCaption;
-            SerialConfig_OpenPort_Btn.Location = new System.Drawing.Point(60, 440);
-            SerialConfig_OpenPort_Btn.Name = "SerialConfig_OpenPort_Btn";
-            SerialConfig_OpenPort_Btn.Size = new System.Drawing.Size(83, 29);
-            SerialConfig_OpenPort_Btn.TabIndex = 11;
-            SerialConfig_OpenPort_Btn.Text = "OPEN";
-            SerialConfig_OpenPort_Btn.UseVisualStyleBackColor = false;
-            SerialConfig_OpenPort_Btn.BackColor = System.Drawing.Color.Green;
-            SerialConfig_OpenPort_Btn.Click += new System.EventHandler(this.SerialConfig_OpenPort_Btn_Click_Handler);
-            // 
-            // SerialConfig_DataBits_TextBox
-            // 
-            SerialConfig_DataBits_TextBox.ReadOnly = true;
-            SerialConfig_DataBits_TextBox.BackColor = System.Drawing.SystemColors.Window;
-            SerialConfig_DataBits_TextBox.Cursor = System.Windows.Forms.Cursors.SizeAll;
-            SerialConfig_DataBits_TextBox.Location = new System.Drawing.Point(31, 240);
-            SerialConfig_DataBits_TextBox.Name = "SerialConfig_DataBits_TextBox";
-            SerialConfig_DataBits_TextBox.Size = new System.Drawing.Size(93, 22);
-            SerialConfig_DataBits_TextBox.TabIndex = 21;
-            SerialConfig_DataBits_TextBox.Text = "Data Bits";
-            SerialConfig_DataBits_TextBox.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            // 
-            // SerialConfig_StopBits_TextBox
-            // 
-            SerialConfig_StopBits_TextBox.ReadOnly = true;
-            SerialConfig_StopBits_TextBox.BackColor = System.Drawing.SystemColors.Window;
-            SerialConfig_StopBits_TextBox.Location = new System.Drawing.Point(31, 380);
-            SerialConfig_StopBits_TextBox.Name = "SerialConfig_StopBits_TextBox";
-            SerialConfig_StopBits_TextBox.Size = new System.Drawing.Size(93, 22);
-            SerialConfig_StopBits_TextBox.TabIndex = 16;
-            SerialConfig_StopBits_TextBox.Text = "Stop Bits";
-            SerialConfig_StopBits_TextBox.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            // 
-            // SerialConfig_Parities_TextBox
-            // 
-            SerialConfig_Parities_TextBox.ReadOnly = true;
-            SerialConfig_Parities_TextBox.BackColor = System.Drawing.SystemColors.Window;
-            SerialConfig_Parities_TextBox.Location = new System.Drawing.Point(31, 310);
-            SerialConfig_Parities_TextBox.Name = "SerialConfig_Parities_TextBox";
-            SerialConfig_Parities_TextBox.Size = new System.Drawing.Size(93, 22);
-            SerialConfig_Parities_TextBox.TabIndex = 15;
-            SerialConfig_Parities_TextBox.Text = "Parity";
-            SerialConfig_Parities_TextBox.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            // 
-            // SerialConfig_BaudRates_TextBox
-            // 
-            SerialConfig_BaudRates_TextBox.ReadOnly = true;
-            SerialConfig_BaudRates_TextBox.BackColor = System.Drawing.SystemColors.Window;
-            SerialConfig_BaudRates_TextBox.Location = new System.Drawing.Point(31, 170);
-            SerialConfig_BaudRates_TextBox.Name = "SerialConfig_BaudRates_TextBox";
-            SerialConfig_BaudRates_TextBox.Size = new System.Drawing.Size(93, 22);
-            SerialConfig_BaudRates_TextBox.TabIndex = 14;
-            SerialConfig_BaudRates_TextBox.Text = " Baud Rate";
-            SerialConfig_BaudRates_TextBox.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            // 
-            // SerialConfig_Ports_TextBox
-            // 
-            SerialConfig_Ports_TextBox.ReadOnly = true;
-            SerialConfig_Ports_TextBox.BackColor = System.Drawing.SystemColors.Window;
-            SerialConfig_Ports_TextBox.Location = new System.Drawing.Point(31, 100);
-            SerialConfig_Ports_TextBox.Name = "SerialConfig_Ports_TextBox";
-            SerialConfig_Ports_TextBox.Size = new System.Drawing.Size(93, 22);
-            SerialConfig_Ports_TextBox.TabIndex = 12;
-            SerialConfig_Ports_TextBox.Text = "Serial Port";
-            SerialConfig_Ports_TextBox.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             //
             // SerialConfig_Header_TextBox
             // 
@@ -563,52 +431,142 @@ namespace _3D_Printer_GCode_Commander
             SerialConfig_Header_TextBox.Location = new System.Drawing.Point(1, 3);
             SerialConfig_Header_TextBox.Multiline = true;
             SerialConfig_Header_TextBox.Name = "SerialConfig_Header_TextBox";
-            SerialConfig_Header_TextBox.Size = new System.Drawing.Size(324, 29);
+            SerialConfig_Header_TextBox.Size = new System.Drawing.Size(296, 29);
             SerialConfig_Header_TextBox.TabIndex = 5;
             SerialConfig_Header_TextBox.Text = "SERIAL COMM SETTINGS";
             SerialConfig_Header_TextBox.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            // 
+            // SerialConfig_FindPorts_Btn
+            // 
+            SerialConfig_FindPorts_Btn.BackColor = System.Drawing.SystemColors.Info;
+            SerialConfig_FindPorts_Btn.Location = new System.Drawing.Point(13, 240);
+            SerialConfig_FindPorts_Btn.Name = "SerialConfig_FindPorts_Btn";
+            SerialConfig_FindPorts_Btn.Size = new System.Drawing.Size(120, 26);
+            SerialConfig_FindPorts_Btn.TabIndex = 20;
+            SerialConfig_FindPorts_Btn.Text = "REFRESH PORTS";
+            SerialConfig_FindPorts_Btn.UseVisualStyleBackColor = false;
+            SerialConfig_FindPorts_Btn.Click += new System.EventHandler(this.SerialConfig_FindPorts_Btn_Click_Handler);
+            // 
+            // SerialConfig_ClosePort_Btn
+            // 
+            SerialConfig_ClosePort_Btn.BackColor = System.Drawing.SystemColors.ActiveCaption;
+            SerialConfig_ClosePort_Btn.ForeColor = System.Drawing.SystemColors.ActiveCaptionText;
+            SerialConfig_ClosePort_Btn.Location = new System.Drawing.Point(210, 240);
+            SerialConfig_ClosePort_Btn.Name = "SerialConfig_ClosePort_Btn";
+            SerialConfig_ClosePort_Btn.Size = new System.Drawing.Size(70, 26);
+            SerialConfig_ClosePort_Btn.TabIndex = 23;
+            SerialConfig_ClosePort_Btn.Text = "CLOSE";
+            SerialConfig_ClosePort_Btn.UseVisualStyleBackColor = false;
+            SerialConfig_ClosePort_Btn.Click += new System.EventHandler(this.SerialConfig_ClosePort_Btn_Click_Handler);
+            // 
+            // SerialConfig_OpenPort_Btn
+            // 
+            SerialConfig_OpenPort_Btn.BackColor = System.Drawing.SystemColors.GradientInactiveCaption;
+            SerialConfig_OpenPort_Btn.Location = new System.Drawing.Point(137, 240);
+            SerialConfig_OpenPort_Btn.Name = "SerialConfig_OpenPort_Btn";
+            SerialConfig_OpenPort_Btn.Size = new System.Drawing.Size(70, 26);
+            SerialConfig_OpenPort_Btn.TabIndex = 11;
+            SerialConfig_OpenPort_Btn.Text = "OPEN";
+            SerialConfig_OpenPort_Btn.UseVisualStyleBackColor = false;
+            SerialConfig_OpenPort_Btn.BackColor = System.Drawing.Color.Green;
+            SerialConfig_OpenPort_Btn.Click += new System.EventHandler(this.SerialConfig_OpenPort_Btn_Click_Handler);
+            // 
+            // SerialConfig_Ports_TextBox
+            // 
+            SerialConfig_Ports_TextBox.ReadOnly = true;
+            SerialConfig_Ports_TextBox.BackColor = System.Drawing.SystemColors.Window;
+            SerialConfig_Ports_TextBox.Location = new System.Drawing.Point(13, 40);
+            SerialConfig_Ports_TextBox.Name = "SerialConfig_Ports_TextBox";
+            SerialConfig_Ports_TextBox.Size = new System.Drawing.Size(93, 22);
+            SerialConfig_Ports_TextBox.TabIndex = 12;
+            SerialConfig_Ports_TextBox.Text = "Serial Port";
+            SerialConfig_Ports_TextBox.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            // 
+            // SerialConfig_Ports_ComboBox
+            // 
+            SerialConfig_Ports_ComboBox.FormattingEnabled = true;
+            SerialConfig_Ports_ComboBox.Location = new System.Drawing.Point(123, 40);
+            SerialConfig_Ports_ComboBox.Name = "SerialConfig_Ports_ListBox";
+            SerialConfig_Ports_ComboBox.Size = new System.Drawing.Size(155, 24);
+            SerialConfig_Ports_ComboBox.TabIndex = 13;
+            // 
+            // SerialConfig_BaudRates_TextBox
+            // 
+            SerialConfig_BaudRates_TextBox.ReadOnly = true;
+            SerialConfig_BaudRates_TextBox.BackColor = System.Drawing.SystemColors.Window;
+            SerialConfig_BaudRates_TextBox.Location = new System.Drawing.Point(13, 80);
+            SerialConfig_BaudRates_TextBox.Name = "SerialConfig_BaudRates_TextBox";
+            SerialConfig_BaudRates_TextBox.Size = new System.Drawing.Size(93, 22);
+            SerialConfig_BaudRates_TextBox.TabIndex = 14;
+            SerialConfig_BaudRates_TextBox.Text = " Baud Rate";
+            SerialConfig_BaudRates_TextBox.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            // 
+            // SerialConfig_BaudRates_ComboBox
+            // 
+            SerialConfig_BaudRates_ComboBox.FormattingEnabled = true;
+            SerialConfig_BaudRates_ComboBox.Location = new System.Drawing.Point(123, 80);
+            SerialConfig_BaudRates_ComboBox.Name = "SerialConfig_BaudRates_ListBox";
+            SerialConfig_BaudRates_ComboBox.Size = new System.Drawing.Size(155, 24);
+            SerialConfig_BaudRates_ComboBox.TabIndex = 17;
+            // 
+            // SerialConfig_DataBits_TextBox
+            // 
+            SerialConfig_DataBits_TextBox.ReadOnly = true;
+            SerialConfig_DataBits_TextBox.BackColor = System.Drawing.SystemColors.Window;
+            SerialConfig_DataBits_TextBox.Cursor = System.Windows.Forms.Cursors.SizeAll;
+            SerialConfig_DataBits_TextBox.Location = new System.Drawing.Point(13, 120);
+            SerialConfig_DataBits_TextBox.Name = "SerialConfig_DataBits_TextBox";
+            SerialConfig_DataBits_TextBox.Size = new System.Drawing.Size(93, 22);
+            SerialConfig_DataBits_TextBox.TabIndex = 21;
+            SerialConfig_DataBits_TextBox.Text = "Data Bits";
+            SerialConfig_DataBits_TextBox.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // 
             // SerialConfig_DataBits_ComboBox
             // 
             SerialConfig_DataBits_ComboBox.FormattingEnabled = true;
-            SerialConfig_DataBits_ComboBox.Location = new System.Drawing.Point(151, 240);
+            SerialConfig_DataBits_ComboBox.Location = new System.Drawing.Point(123, 120);
             SerialConfig_DataBits_ComboBox.Name = "SerialConfig_DataBits_ListBox";
             SerialConfig_DataBits_ComboBox.Size = new System.Drawing.Size(154, 24);
             SerialConfig_DataBits_ComboBox.TabIndex = 22;
             // 
-            // SerialConfig_StopBits_ComboBox
+            // SerialConfig_Parities_TextBox
             // 
-            SerialConfig_StopBits_ComboBox.FormattingEnabled = true;
-            SerialConfig_StopBits_ComboBox.Location = new System.Drawing.Point(151, 380);
-            SerialConfig_StopBits_ComboBox.Name = "SerialConfig_StopBits_ListBox";
-            SerialConfig_StopBits_ComboBox.Size = new System.Drawing.Size(155, 24);
-            SerialConfig_StopBits_ComboBox.TabIndex = 19;
+            SerialConfig_Parities_TextBox.ReadOnly = true;
+            SerialConfig_Parities_TextBox.BackColor = System.Drawing.SystemColors.Window;
+            SerialConfig_Parities_TextBox.Location = new System.Drawing.Point(13, 160);
+            SerialConfig_Parities_TextBox.Name = "SerialConfig_Parities_TextBox";
+            SerialConfig_Parities_TextBox.Size = new System.Drawing.Size(93, 22);
+            SerialConfig_Parities_TextBox.TabIndex = 15;
+            SerialConfig_Parities_TextBox.Text = "Parity";
+            SerialConfig_Parities_TextBox.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // SerialConfig_Parities_ComboBox
             // 
             SerialConfig_Parities_ComboBox.FormattingEnabled = true;
-            SerialConfig_Parities_ComboBox.Location = new System.Drawing.Point(150, 310);
+            SerialConfig_Parities_ComboBox.Location = new System.Drawing.Point(123, 160);
             SerialConfig_Parities_ComboBox.Name = "SerialConfig_Parities_ListBox";
             SerialConfig_Parities_ComboBox.Size = new System.Drawing.Size(155, 24);
             SerialConfig_Parities_ComboBox.TabIndex = 18;
             // 
-            // SerialConfig_BaudRates_ComboBox
+            // SerialConfig_StopBits_TextBox
             // 
-            SerialConfig_BaudRates_ComboBox.FormattingEnabled = true;
-            SerialConfig_BaudRates_ComboBox.Location = new System.Drawing.Point(148, 170);
-            SerialConfig_BaudRates_ComboBox.Name = "SerialConfig_BaudRates_ListBox";
-            SerialConfig_BaudRates_ComboBox.Size = new System.Drawing.Size(155, 24);
-            SerialConfig_BaudRates_ComboBox.TabIndex = 17;
+            SerialConfig_StopBits_TextBox.ReadOnly = true;
+            SerialConfig_StopBits_TextBox.BackColor = System.Drawing.SystemColors.Window;
+            SerialConfig_StopBits_TextBox.Location = new System.Drawing.Point(13, 200);
+            SerialConfig_StopBits_TextBox.Name = "SerialConfig_StopBits_TextBox";
+            SerialConfig_StopBits_TextBox.Size = new System.Drawing.Size(93, 22);
+            SerialConfig_StopBits_TextBox.TabIndex = 16;
+            SerialConfig_StopBits_TextBox.Text = "Stop Bits";
+            SerialConfig_StopBits_TextBox.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
-            // SerialConfig_Ports_ComboBox
+            // SerialConfig_StopBits_ComboBox
             // 
-            SerialConfig_Ports_ComboBox.FormattingEnabled = true;
-            SerialConfig_Ports_ComboBox.Location = new System.Drawing.Point(148, 100);
-            SerialConfig_Ports_ComboBox.Name = "SerialConfig_Ports_ListBox";
-            SerialConfig_Ports_ComboBox.Size = new System.Drawing.Size(155, 24);
-            SerialConfig_Ports_ComboBox.TabIndex = 13;
-
+            SerialConfig_StopBits_ComboBox.FormattingEnabled = true;
+            SerialConfig_StopBits_ComboBox.Location = new System.Drawing.Point(123, 200);
+            SerialConfig_StopBits_ComboBox.Name = "SerialConfig_StopBits_ListBox";
+            SerialConfig_StopBits_ComboBox.Size = new System.Drawing.Size(155, 24);
+            SerialConfig_StopBits_ComboBox.TabIndex = 19;
 
             //Add elements to panel
             SerialConfig_Panel.Controls.Add(SerialConfig_FindPorts_Btn);
@@ -650,9 +608,9 @@ namespace _3D_Printer_GCode_Commander
             // 
             SerialComm_Panel.BackColor = System.Drawing.SystemColors.ControlLight;
             SerialComm_Panel.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            SerialComm_Panel.Location = new System.Drawing.Point(673, 3);
+            SerialComm_Panel.Location = new System.Drawing.Point(640, 3);
             SerialComm_Panel.Name = "SerCommStatus_Panel";
-            SerialComm_Panel.Size = new System.Drawing.Size(409, 505);
+            SerialComm_Panel.Size = new System.Drawing.Size(409, 502);
             SerialComm_Panel.TabIndex = 5;
             // 
             // SerialComm_ReceivedMsgs_ListBox
@@ -918,7 +876,31 @@ namespace _3D_Printer_GCode_Commander
         }
         private void SerialConfig_ClosePort_Btn_Click_Handler(object sender, EventArgs e)
         {
+            list_access_semaphore.Wait();
+            try
+            {
+                //clear TransmitQueue
+                serialTransmitQueue.Clear();
+
+                //Add End Message
+                ModuleMessage moduleMsg = new ModuleMessage(CommandType_e.END);
+                serialTransmitQueue.Add(moduleMsg);
+            }
+            finally
+            {
+                //release semaphore
+                list_access_semaphore.Release();
+            }
+
+            //if serial port is busy writing bytes, then wait....
+            while (serialPort_Instance.BytesToWrite > 0)
+            {
+                Task.Delay(200);
+            } //waiting for serial port to be ready
+
+            //close the port
             ClosePort();
+
             SerialConfig_OpenPort_Btn.BackColor = System.Drawing.Color.Green;
             SerialConfig_ClosePort_Btn.BackColor = System.Drawing.Color.Gray;
 
@@ -963,7 +945,7 @@ namespace _3D_Printer_GCode_Commander
             if (commandList != null && serialPort_Instance.IsOpen)
             {
                 //add start printing identifier to the tx queue to send to the module
-                moduleMsg = new ModuleMessage(CommandType_e.START, 0);
+                moduleMsg = new ModuleMessage(CommandType_e.BEGIN);
                 serialTransmitQueue.Add(moduleMsg);
 
                 //add command list elements to the tx queue
@@ -972,10 +954,6 @@ namespace _3D_Printer_GCode_Commander
                     moduleMsg = new ModuleMessage(commandList[i]);
                     serialTransmitQueue.Add(moduleMsg);
                 }
-
-                //add end printing identifier to the tx queue
-                moduleMsg = new ModuleMessage(CommandType_e.END, 0);
-                serialTransmitQueue.Add(moduleMsg);
 
                 //grey out the start button
                 SerialComm_StartComm_Btn.Enabled = false;
