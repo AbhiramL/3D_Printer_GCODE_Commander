@@ -45,9 +45,6 @@ namespace _3D_Printer_GCode_Commander
         //public variables
         public readonly ClassNames_e myClassName = ClassNames_e.Serial_Comm_Class;
 
-        //delegate function to update the sent and receive listboxes
-        public delegate void UpdateListBoxDelegate(byte[] message);
-
         //private variables
         private static SerialComm_Class SerialComm_Instance = null;
         private SerialPort serialPort_Instance = null;
@@ -59,8 +56,11 @@ namespace _3D_Printer_GCode_Commander
         int txListBoxCnt;
         int rxListBoxCnt;
 
+        //delegate function to update the sent and receive listboxes
+        public delegate void UpdateListBoxDelegate(byte[] message);
+
         //async tasks variables
-        private readonly SemaphoreSlim list_access_semaphore = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim txQueue_access_semaphore = new SemaphoreSlim(1, 1);
         private List<ModuleMessage> serialTransmitQueue; //tx messages are in module messages
         private List<byte> serialReceiveQueue; //rx messages are in byte format, to be processed into complete messages
         private CancellationTokenSource cancelTokenSource;
@@ -237,12 +237,41 @@ namespace _3D_Printer_GCode_Commander
             }//end if
         }//end function
 
+
         /********************************************************
          * Add serial message to transmit queue.
          * 
          * adds a serial message to the Transmit queue
          *******************************************************/
-        public void AddMessageToTxQueue(IntertaskMessage serialCommMessage)
+        private void AddMessageToTxQueue(ModuleMessage mmsg, byte? position = null)
+        {
+            txQueue_access_semaphore.Wait();
+            try
+            {
+                if (position != null)
+                {
+                    //add module message to the transmit queue to send out
+                    serialTransmitQueue.Insert((int)position, mmsg);
+                }
+                else
+                {
+                    //add to the back of the list
+                    serialTransmitQueue.Add(mmsg);
+                }
+            }
+            finally
+            {
+                //release semaphore
+                txQueue_access_semaphore.Release();
+            }
+        }
+
+        /********************************************************
+         * Send Message function
+         * 
+         * adds a serial message to the Transmit queue
+         *******************************************************/
+        public void sendMessage(IntertaskMessage ittmsg)
         {
             if (serialPort_Instance == null)
             {
@@ -252,21 +281,7 @@ namespace _3D_Printer_GCode_Commander
             {
                 if (serialPort_Instance.IsOpen)
                 {
-                    //debugging
-                    //_uiControl.Invoke(new Action(() => AddSentMessage(s_message + $",\t{DateTime.Now:HH:mm:ss}")));
-
-                    //get access semaphore
-                    list_access_semaphore.Wait();
-                    try
-                    {
-                        //add module message to the transmit queue to send out
-                        serialTransmitQueue.Insert(0, serialCommMessage.moduleMsg);
-                    }
-                    finally
-                    {
-                        //release semaphore
-                        list_access_semaphore.Release();
-                    }
+                    AddMessageToTxQueue(ittmsg.moduleMsg, 0);
                 }
                 else
                 {
@@ -302,17 +317,17 @@ namespace _3D_Printer_GCode_Commander
                         await Task.Delay(200,token); 
                     } //waiting for serial port to be ready
 
-                    //if we didn't receive an acknowledgment yet for the prev msg sent...
-                    while (currTransactionCnt != recvTransactionCnt)
+                    //if there are msgs in the Queue
+                    if (serialTransmitQueue.Count > 0)
                     {
-                        await Task.Delay(200, token);
-                    }//waiting for response from module before new message is sent
+                        //if we didn't receive an acknowledgment yet for the prev msg sent...
+                        while (currTransactionCnt != recvTransactionCnt)
+                        {
+                            await Task.Delay(1000, token);
+                        }//waiting for response from module before new message is sent
 
-                    //if there are msgs in the Queue 
-                    if (serialTransmitQueue.Count > 0) 
-                    {
                         //get access semaphore to read queue
-                        await list_access_semaphore.WaitAsync(token);
+                        await txQueue_access_semaphore.WaitAsync(token);
                         try 
                         {
                             //set curr transaction count with the next message's transactID
@@ -329,15 +344,16 @@ namespace _3D_Printer_GCode_Commander
                         finally
                         {
                             //release semaphore
-                            list_access_semaphore.Release();
+                            txQueue_access_semaphore.Release();
                         }
-                        
+
                         //add message to screen ui
                         SerialComm_SentMsgs_ListBox.Invoke(delegateFunction, bytes);
                     }
                 }
 
-                await Task.Delay(200,token); // Pass the token to ensure safe cancellation
+                //task will run every 200 ms
+                await Task.Delay(200,token); 
             }
         }
 
@@ -370,9 +386,6 @@ namespace _3D_Printer_GCode_Commander
                     //if received message is valid
                     if(receivedMessage.isValid && (receivedMessage.locationIdx != null))
                     {
-                        //set the recieved transaction count to the new count
-                        recvTransactionCnt = receivedMessage.baseMessage.TransactID;
-
                         //invoke the SerialComm class route message function
                         RouteModuleMessage(receivedMessage);
 
@@ -381,6 +394,9 @@ namespace _3D_Printer_GCode_Commander
 
                         //since the message is valid, remove numbytes in receive queue and all previous bytes from idx 0
                         serialReceiveQueue.RemoveRange(0, (int)receivedMessage.locationIdx + receivedMessage.baseMessage.NumBytes);
+
+                        //set the recieved transaction count to the new count
+                        recvTransactionCnt = receivedMessage.baseMessage.TransactID;
                     }
                 }
                 await Task.Delay(500, token); // Pass the token to ensure safe cancellation
@@ -642,6 +658,7 @@ namespace _3D_Printer_GCode_Commander
             SerialComm_StartComm_Btn.UseVisualStyleBackColor = true;
             SerialComm_StartComm_Btn.BackColor = System.Drawing.Color.Green;
             SerialComm_StartComm_Btn.Click += new System.EventHandler(this.SerialComm_StartComm_Btn_Click_Handler);
+            SerialComm_StartComm_Btn.Enabled = false;
             // 
             // SerialComm_ReceivedMsgsHeader_TextBox
             // 
@@ -841,6 +858,15 @@ namespace _3D_Printer_GCode_Commander
         }
 
         /********************************************************
+         * Enable Start Comm Btn function 
+         *******************************************************/
+        public void EnableCommBtn()
+        {
+            //enable the start button
+            SerialComm_StartComm_Btn.Enabled = true;
+            SerialComm_StartComm_Btn.BackColor = System.Drawing.Color.Green;
+        }
+        /********************************************************
          * ComboBox Click Handlers
          * 
          * records user input
@@ -876,7 +902,7 @@ namespace _3D_Printer_GCode_Commander
         }
         private void SerialConfig_ClosePort_Btn_Click_Handler(object sender, EventArgs e)
         {
-            list_access_semaphore.Wait();
+            txQueue_access_semaphore.Wait();
             try
             {
                 //clear TransmitQueue
@@ -889,7 +915,7 @@ namespace _3D_Printer_GCode_Commander
             finally
             {
                 //release semaphore
-                list_access_semaphore.Release();
+                txQueue_access_semaphore.Release();
             }
 
             //if serial port is busy writing bytes, then wait....
@@ -904,7 +930,7 @@ namespace _3D_Printer_GCode_Commander
             SerialConfig_OpenPort_Btn.BackColor = System.Drawing.Color.Green;
             SerialConfig_ClosePort_Btn.BackColor = System.Drawing.Color.Gray;
 
-            //enable all port options until the port is opened
+            //enable all port options
             SerialConfig_Ports_ComboBox.Enabled =     true;
             SerialConfig_BaudRates_ComboBox.Enabled = true;
             SerialConfig_Parities_ComboBox.Enabled =  true;
@@ -914,6 +940,9 @@ namespace _3D_Printer_GCode_Commander
 
             //change panel color to default to show that a port needs to be init-ed
             SerialConfig_Panel.BackColor = System.Drawing.SystemColors.ControlLight;
+
+            //modify panel color to show it is ready to be active
+            SerialComm_Panel.BackColor = System.Drawing.SystemColors.ControlLight;
         }
         private void SerialConfig_OpenPort_Btn_Click_Handler(object sender, EventArgs e)
         {
@@ -936,33 +965,30 @@ namespace _3D_Printer_GCode_Commander
         }
         private void SerialComm_StartComm_Btn_Click_Handler(object sender, EventArgs e)
         {
-            //get hold of the commander, ask for the gcode command list
+            //get hold of the commander, set the gcode command list
             List<GCodeCommand> commandList = Commander_MainApp.GetGCodeCommandList();
-
-            ModuleMessage moduleMsg;
 
             //add all elements of the list into the transmit queue
             if (commandList != null && serialPort_Instance.IsOpen)
             {
-                //add start printing identifier to the tx queue to send to the module
-                moduleMsg = new ModuleMessage(CommandType_e.BEGIN);
-                serialTransmitQueue.Add(moduleMsg);
+                //add start message to the tx queue
+                ModuleMessage moduleMsg = new ModuleMessage(CommandType_e.BEGIN);
+                AddMessageToTxQueue(moduleMsg);
 
-                //add command list elements to the tx queue
                 for (int i = 0; i < commandList.Count; i++)
                 {
                     moduleMsg = new ModuleMessage(commandList[i]);
-                    serialTransmitQueue.Add(moduleMsg);
+                    AddMessageToTxQueue(moduleMsg);
                 }
-
-                //grey out the start button
-                SerialComm_StartComm_Btn.Enabled = false;
-                SerialComm_StartComm_Btn.BackColor = System.Drawing.Color.Gray;
-
-                //modify panel color to show it is doing a process
-                SerialComm_Panel.BackColor= System.Drawing.SystemColors.Info;
             }
+
+            //grey out the start button
+            SerialComm_StartComm_Btn.Enabled = false;
+            SerialComm_StartComm_Btn.BackColor = System.Drawing.Color.Gray;
+
+            //modify panel color to show it is doing a process
+            SerialComm_Panel.BackColor= System.Drawing.SystemColors.Info;
         }
 
-    }
+    }//end class
 }

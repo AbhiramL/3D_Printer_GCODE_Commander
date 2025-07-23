@@ -18,7 +18,6 @@ namespace _3D_Printer_GCode_Commander
 
         //private class variables
         private static ModuleInfo_Class ModuleInfo_instance = null;
-        private List<IntertaskMessage> ittMsgRequestQueue;
 
         //private ui element variables
         private System.Windows.Forms.Panel ModuleInfo_Panel;
@@ -37,8 +36,6 @@ namespace _3D_Printer_GCode_Commander
         {
             //Build Module Info panel and buttons.
             Build_ModuleInfo_Panel();
-
-            ittMsgRequestQueue = new List<IntertaskMessage>();
         }
 
         /********************************************************
@@ -184,28 +181,67 @@ namespace _3D_Printer_GCode_Commander
         }
 
         /********************************************************
-         * Add intertask message to ModuleInfo class queue function 
-         * 
-         *******************************************************/
-        public void AddIntertaskMsgToQueue(IntertaskMessage msg)
-        {
-            ittMsgRequestQueue.Add(msg);
-        }
-
-        /********************************************************
          * Update ModuleInfo Panel UI function 
          * 
          *******************************************************/
-        private void UpdatePanelUI(bool isConnected, byte major, byte minor, byte rev)
+        private void UpdatePanelUI(bool isConnected, float firmware, float capabilities)
         {
-            //update version # only if a valid major number appeared
-            if (major != 0) 
+            ModuleVersion_Label.Invoke(new Action(() =>
             {
-                ModuleVersion_Label.Text = isConnected ? (major + "." + minor + "." + rev) : "-";
-            }
+                byte[] arr = BitConverter.GetBytes(firmware);
+                byte rev = 0, minor = 0, major = 0;
 
-            ConnStatus_Label.Text = isConnected ? "CONNECTED" : "NOT CONNECTED";
-            ModuleInfo_Panel.BackColor = isConnected ? System.Drawing.SystemColors.Info : System.Drawing.SystemColors.ControlLight;
+                //get the firmware version
+                rev   = arr[0];
+                minor = arr[1];
+                major = arr[2];
+                
+
+                ModuleVersion_Label.Text = isConnected ? (major + "." + minor + "." + rev) : "-";
+                ConnStatus_Label.Text = isConnected ? "CONNECTED" : "NOT CONNECTED";
+                ModuleInfo_Panel.BackColor = isConnected ? System.Drawing.SystemColors.Info : System.Drawing.SystemColors.ControlLight;
+            }));
+           
+        }
+
+        /********************************************************
+         * Process Message function 
+         * 
+         * process a intertask message 
+         *******************************************************/
+        public void ProcessMessage(IntertaskMessage ittmsg)
+        {
+            if(ittmsg.moduleMsg.isValid)
+            {
+                if((ittmsg.moduleMsg.baseMessage.CmdType == CommandType_e.ID) 
+                    && (ittmsg.moduleMsg.varMessage.Data.Length >= 2)) 
+                {
+                    //valid response for ID request came in carrying id information of the module
+                    float firmwareVers = 0, capabilities = 0;
+
+
+                    for (byte i = 0; i < ittmsg.moduleMsg.varMessage.Data.Length; i++)
+                    {
+                        switch((ParameterType_e)ittmsg.moduleMsg.varMessage.DataTypes[i])
+                        {
+                            case ParameterType_e.FIRMWARE:
+                                {
+                                    firmwareVers = ittmsg.moduleMsg.varMessage.Data[i];
+                                    break;
+                                }
+                            case ParameterType_e.CAPABLES:
+                                {
+                                    break;
+                                }
+                            default:
+                                break;
+                        }
+                    }
+
+
+                    UpdatePanelUI(true, firmwareVers, capabilities);
+                }
+            }
         }
 
         /********************************************************

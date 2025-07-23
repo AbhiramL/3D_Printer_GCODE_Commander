@@ -71,13 +71,13 @@ namespace _3D_Printer_GCode_Commander
         {
             //sets up a message with the Command Type
             baseMessage.Sync = 0xB7;
-            baseMessage.TransactID = currTransactID++;
             baseMessage.CmdType = cmdType;
 
             switch (cmdType)
             {
                 case CommandType_e.ID:
                     baseMessage.CmdID = 0;
+                    ResetTransactionID();
                     break;
                 case CommandType_e.MCF:
                     baseMessage.CmdID = 1;
@@ -100,6 +100,7 @@ namespace _3D_Printer_GCode_Commander
                     break;
             }
 
+            baseMessage.TransactID = currTransactID++;
             baseMessage.NumBytes = BASE_MSG_SIZE;
             baseMessage.Checksum = CalculateChecksum();
             isValid = true;
@@ -114,7 +115,9 @@ namespace _3D_Printer_GCode_Commander
 
             //set up message base
             baseMessage.Sync = 0xB7;
-            baseMessage.TransactID = currTransactID++;
+            baseMessage.CmdType = gCode.CmdType;
+            baseMessage.CmdID = (ushort)gCode.CmdCode;
+
             if (gCode.Parameters != null)
             {
                 baseMessage.NumBytes = (ushort)(BASE_MSG_SIZE + (gCode.Parameters.Count * VAR_MSG_PARAMETER_SIZE));
@@ -123,9 +126,6 @@ namespace _3D_Printer_GCode_Commander
             {
                 baseMessage.NumBytes = (ushort)BASE_MSG_SIZE;
             }
-            baseMessage.CmdType = gCode.CmdType;
-            baseMessage.CmdID = (ushort)gCode.CmdCode;
-
 
             if ((gCode.Parameters != null) && (gCode.Parameters.Count > 0))
             {
@@ -139,7 +139,13 @@ namespace _3D_Printer_GCode_Commander
                     varMessage.Data[count] = gCode.Parameters[key];
                     count++;
                 }
-            }   
+            }
+
+            if (baseMessage.CmdType == CommandType_e.ID)
+            {
+                ResetTransactionID();
+            }
+            baseMessage.TransactID = currTransactID++;
             baseMessage.Checksum = CalculateChecksum();
             isValid = true;
             locationIdx = null;
@@ -205,10 +211,9 @@ namespace _3D_Printer_GCode_Commander
                     {
                         //Message with multiple parameters...
                         //Identify responses, Diagnosis Responses, Power Down responses will be handled here...
-
                         byte numParameters = (byte)((baseMessage.NumBytes - BASE_MSG_SIZE) / (VAR_MSG_PARAMETER_SIZE));
 
-                        //create module command response message
+                        //create module command response message arrays with exact size of numParameters
                         varMessage.Data = new float[numParameters];
                         varMessage.DataTypes = new byte[numParameters];
 
