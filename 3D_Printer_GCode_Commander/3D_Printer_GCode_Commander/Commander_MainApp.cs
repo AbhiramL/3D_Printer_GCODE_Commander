@@ -69,12 +69,11 @@ namespace _3D_Printer_GCode_Commander
             {
                 //handle error or invalid message here
                 MessageBox.Show("Message Error", "Commander found an error.", MessageBoxButtons.OK, MessageBoxIcon.Error);
-
             }
             else if (request.messageOwner != ClassNames_e.Serial_Comm_Class)
             {
                 //if the message sender is not SerialComm, route the message to SerialComm
-                SerialComm_Class.GetInstance().AddMessageToTxQueue(request);
+                SerialComm_Class.GetInstance().sendMessage(request);
                 ittMessageQueue.Add(request);
             }
             else
@@ -89,8 +88,12 @@ namespace _3D_Printer_GCode_Commander
                         switch (ittMessageQueue[i].messageOwner)
                         {
                             case ClassNames_e.Module_Info_Class:
-                                ModuleInfo_Class.GetInstance().AddIntertaskMsgToQueue(request);
-                                break;
+                                {
+                                    //message for Module Info Class
+                                    ModuleInfo_Class.GetInstance().ProcessMessage(request);
+
+                                    break;
+                                }
                             case ClassNames_e.Diagnostic_Class:
                                 break;
                             case ClassNames_e.Gcode_File_Info_Class:
